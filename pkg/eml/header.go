@@ -80,11 +80,53 @@ func getTransportHeaderLines(transportHeaders string) []string {
 
 	for _, field := range parseHeaderFields(transportHeaders) {
 		if !replacedHeaderFields[strings.ToLower(field.name)] {
-			lines = append(lines, field.lines...)
+			for _, line := range field.lines {
+				lines = append(lines, foldLongLine(field.name, line)...)
+			}
 		}
 	}
 
 	return lines
+}
+
+// maxLineLength is the limit of RFC 5322 (2.1.1 Line Length Limits) without the CRLF.
+const maxLineLength = 998
+
+// addressFields are the header fields with address lists, where folding whitespace may be inserted after the comma
+// between addresses (RFC 5322: 3.4 Address Specification).
+var addressFields = map[string]bool{
+	"from": true, "sender": true, "reply-to": true, "to": true, "cc": true, "bcc": true,
+	"resent-from": true, "resent-sender": true, "resent-to": true, "resent-cc": true, "resent-bcc": true,
+}
+
+// foldLongLine folds a line of the header field longer than maxLineLength before whitespace, which unfolding
+// removes again (RFC 5322: 2.2.3 Long Header Fields); address lists without whitespace are folded after a comma.
+// A line that can't be folded is returned as it is.
+func foldLongLine(name string, line string) []string {
+	var lines []string
+
+	// Don't fold right after the field name.
+	minimum := 1
+
+	if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+		minimum = len(name) + 2
+	}
+
+	for len(line) > maxLineLength {
+		if index := strings.LastIndexAny(line[:maxLineLength+1], " \t"); index >= minimum {
+			lines = append(lines, line[:index])
+			line = line[index:]
+		} else if index := strings.LastIndexByte(line[:maxLineLength], ','); addressFields[strings.ToLower(name)] && index >= minimum {
+			lines = append(lines, line[:index+1])
+			line = " " + line[index+1:]
+		} else {
+			break
+		}
+
+		minimum = 1
+	}
+
+	return append(lines, line)
 }
 
 // getHeaderField returns the lines of the first field with the name (case-insensitive), nil if there is none.

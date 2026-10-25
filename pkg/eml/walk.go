@@ -176,7 +176,10 @@ func getMessageIdentifiers(folder *pst.Folder) (messageIdentifiers []pst.Identif
 
 	tableContext, err := folder.GetMessageTableContext()
 
-	if err != nil {
+	if eris.Is(err, pst.ErrTableContextNoRows) {
+		// The folder has a message count, but the contents table is empty.
+		return nil, nil
+	} else if err != nil {
 		return nil, eris.Wrap(err, "failed to get the contents table")
 	}
 

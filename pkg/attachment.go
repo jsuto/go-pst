@@ -85,7 +85,10 @@ func (message *Message) GetAttachmentTableContext() (*TableContext, error) {
 
 		attachmentTableContext, err := message.File.GetTableContext(attachmentHeapOnNode, attachmentLocalDescriptors, 26610)
 
-		if err != nil {
+		if eris.Is(err, ErrTableContextNoRows) {
+			// The message is flagged as having attachments, but the attachment table is empty.
+			return nil, ErrAttachmentsNotFound
+		} else if err != nil {
 			return nil, eris.Wrap(err, "failed to get attachment table context")
 		}
 

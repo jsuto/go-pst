@@ -107,7 +107,10 @@ func (folder *Folder) GetSubFolders() ([]Folder, error) {
 
 	tableContext, err := folder.GetSubFoldersTableContext()
 
-	if err != nil {
+	if eris.Is(err, ErrTableContextNoRows) {
+		// The folder is flagged as having sub-folders, but the hierarchy table is empty.
+		return nil, nil
+	} else if err != nil {
 		return nil, eris.Wrap(err, "failed to get sub folders table context")
 	}
 

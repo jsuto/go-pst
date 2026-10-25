@@ -17,8 +17,6 @@ and are not compatible with upstream's `v6`.
 
 Work in progress. Planned, roughly in this order:
 
-- plain text, HTML and compressed RTF bodies (including HTML encapsulated
-  in RTF)
 - a converter package and `cmd/pst2eml`
 
 Changes compared to upstream v6.0.2:
@@ -40,6 +38,11 @@ Changes compared to upstream v6.0.2:
   #10) can be read like any other message, `Attachment.IsInline`, constants for
   `PR_ATTACH_METHOD` and `PR_ATTACH_FLAGS`; `WriteTo` returns an error for
   embedded messages
+- bodies: `Message.GetBody` returns `PR_BODY` and `PR_HTML` (with the code
+  page of `PR_INTERNET_CPID`, `GetCharsetName` for the MIME charset); without
+  `PR_HTML`, compressed RTF is converted: RTF encapsulating HTML back to HTML
+  ([MS-OXRTFEX]), other RTF to text (`ConvertRTF`); the RTF decompression
+  follows [MS-OXRTFCP] (wrong dictionary and uncompressed RTF fixed)
 
 ## Usage
 

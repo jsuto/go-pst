@@ -52,5 +52,6 @@ var (
 	ErrAttachmentNotEmbeddedMessage      = errors.New("go-pst: attachment is not an embedded message")
 	ErrAttachmentEmbeddedMessage         = errors.New("go-pst: attachment is an embedded message, it has no data")
 	ErrBlockIndexNotFound                = errors.New("go-pst: block index not found")
+	ErrRTFInvalid                        = errors.New("go-pst: invalid compressed RTF")
 	ErrTotalBlocksSizeMismatch           = errors.New("go-pst: block total size mismatch")
 )

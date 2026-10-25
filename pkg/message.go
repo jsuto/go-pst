@@ -276,7 +276,8 @@ func (file *File) newMessage(identifier Identifier, propertyContext *PropertyCon
 	}, nil
 }
 
-// GetBodyRTF return the RTF body, may be
+// GetBodyRTF returns the decompressed RTF body (PR_RTF_COMPRESSED), may return ErrPropertyNotFound.
+// See GetBody and ConvertRTF.
 func (message *Message) GetBodyRTF() (string, error) {
 	rtfPropertyReader, err := message.PropertyContext.GetPropertyReader(4105, message.LocalDescriptors)
 

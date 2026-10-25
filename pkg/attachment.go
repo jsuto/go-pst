@@ -17,6 +17,7 @@
 package pst
 
 import (
+	"encoding/binary"
 	"github.com/jsuto/go-pst/pkg/properties"
 	"io"
 
@@ -25,6 +26,7 @@ import (
 
 // Attachment represents a message attachment.
 type Attachment struct {
+	File             *File
 	Identifier       Identifier
 	PropertyContext  *PropertyContext
 	LocalDescriptors []LocalDescriptor
@@ -164,6 +166,7 @@ func (message *Message) GetAttachment(attachmentIndex int) (*Attachment, error) 
 	}
 
 	attachment := &Attachment{
+		File:             message.File,
 		Identifier:       attachmentLocalDescriptor.Identifier,
 		PropertyContext:  attachmentPropertyContext,
 		LocalDescriptors: attachmentLocalDescriptors,
@@ -206,6 +209,7 @@ func (file *File) GetAttachment(messageIdentifier Identifier) (*Attachment, erro
 	propertyContext, err := file.GetPropertyContext(attachmentsHeapOnNode)
 
 	attachment := &Attachment{
+		File:             file,
 		Identifier:       messageIdentifier,
 		PropertyContext:  propertyContext,
 		LocalDescriptors: localDescriptors,
@@ -310,8 +314,102 @@ func (message *Message) GetAttachmentIterator() (AttachmentIterator, error) {
 	}, nil
 }
 
-// WriteTo writes the attachment to the specified io.Writer.
+// Constants defining the attachment methods (PR_ATTACH_METHOD).
+// References [MS-OXCMSG]: 2.2.2.9 PidTagAttachMethod.
+const (
+	AttachMethodNone            = 0
+	AttachMethodByValue         = 1 // The data is in PR_ATTACH_DATA_BIN, see WriteTo.
+	AttachMethodByReference     = 2
+	AttachMethodByReferenceOnly = 4
+	AttachMethodEmbeddedMessage = 5 // See GetEmbeddedMessage.
+	AttachMethodOLE             = 6
+)
+
+// Constants defining the attachment flags (PR_ATTACH_FLAGS).
+// References [MS-OXCMSG]: 2.2.2.18 PidTagAttachFlags.
+const (
+	AttachFlagInvisibleInHTML = 0x1
+	AttachFlagInvisibleInRTF  = 0x2
+	AttachFlagRenderedInBody  = 0x4 // ATT_MHTML_REF: referenced by the HTML body (Content-ID or Content-Location).
+)
+
+// propertyIDAttachDataObject is PR_ATTACH_DATA_OBJ, the same ID as PR_ATTACH_DATA_BIN but of type PtypObject.
+const propertyIDAttachDataObject = 0x3701
+
+// IsEmbeddedMessage returns true if the attachment is a message (forwarded as attachment, for example).
+func (attachment *Attachment) IsEmbeddedMessage() bool {
+	return attachment.GetAttachMethod() == AttachMethodEmbeddedMessage
+}
+
+// IsInline returns true if the attachment is marked as rendered in the body:
+// ATT_MHTML_REF in PR_ATTACH_FLAGS, or hidden (PR_ATTACHMENT_HIDDEN) and having a Content-ID.
+// Whether the HTML body actually references the Content-ID is up to the caller.
+func (attachment *Attachment) IsInline() bool {
+	return attachment.GetAttachFlags()&AttachFlagRenderedInBody != 0 ||
+		(attachment.GetAttachmentHidden() && attachment.GetAttachContentId() != "")
+}
+
+// GetEmbeddedMessage returns the message of an attachment with PR_ATTACH_METHOD afEmbeddedMessage.
+// The message can be used like any other: its recipients, attachments (also embedded messages) and properties.
+// References [MS-PST]: 2.3.3.5 PtypObject Properties, 2.4.6.2 Attachment Object PC.
+func (attachment *Attachment) GetEmbeddedMessage() (*Message, error) {
+	if !attachment.IsEmbeddedMessage() {
+		return nil, ErrAttachmentNotEmbeddedMessage
+	}
+
+	propertyReader, err := attachment.PropertyContext.GetPropertyReader(propertyIDAttachDataObject, attachment.LocalDescriptors)
+
+	if err != nil {
+		return nil, eris.Wrap(err, "failed to get attachment data object property reader")
+	} else if propertyReader.Property.Type != PropertyTypeObject {
+		return nil, ErrPropertyTypeMismatch
+	}
+
+	// The value is the subnode identifier of the embedded message (4 bytes) followed by its size (4 bytes).
+	objectReference := make([]byte, 4)
+
+	if propertyReader.Size() < 4 {
+		return nil, ErrPropertyDataTooShort
+	} else if _, err := propertyReader.ReadAt(objectReference, 0); err != nil {
+		return nil, eris.Wrap(err, "failed to read attachment data object")
+	}
+
+	messageIdentifier := Identifier(binary.LittleEndian.Uint32(objectReference))
+
+	messageLocalDescriptor, err := FindLocalDescriptor(messageIdentifier, attachment.LocalDescriptors)
+
+	if err != nil {
+		return nil, eris.Wrap(err, "failed to find embedded message local descriptor")
+	}
+
+	messageHeapOnNode, err := attachment.File.GetHeapOnNodeFromLocalDescriptor(messageLocalDescriptor)
+
+	if err != nil {
+		return nil, eris.Wrap(err, "failed to get embedded message Heap-on-Node")
+	}
+
+	messageLocalDescriptors, err := attachment.File.GetLocalDescriptorsFromIdentifier(messageLocalDescriptor.LocalDescriptorsIdentifier)
+
+	if err != nil {
+		return nil, eris.Wrap(err, "failed to get embedded message local descriptors")
+	}
+
+	messagePropertyContext, err := attachment.File.GetPropertyContext(messageHeapOnNode)
+
+	if err != nil {
+		return nil, eris.Wrap(err, "failed to get embedded message property context")
+	}
+
+	return attachment.File.newMessage(messageIdentifier, messagePropertyContext, messageLocalDescriptors)
+}
+
+// WriteTo writes the attachment data (PR_ATTACH_DATA_BIN) to the specified io.Writer.
+// Embedded messages have no data, see GetEmbeddedMessage.
 func (attachment *Attachment) WriteTo(writer io.Writer) (int64, error) {
+	if attachment.IsEmbeddedMessage() {
+		return 0, ErrAttachmentEmbeddedMessage
+	}
+
 	attachmentReader, err := attachment.PropertyContext.GetPropertyReader(14081, attachment.LocalDescriptors)
 
 	if eris.Is(err, ErrPropertyNoData) {

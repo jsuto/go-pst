@@ -16,6 +16,11 @@
 
 package pst
 
+import (
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/ianaindex"
+)
+
 // CodePageIdentifierToEncoding maps the code page identifier to the IANA encoding for decoding String8 (PropertyReader).
 // References https://docs.microsoft.com/en-us/windows/win32/intl/code-page-identifiers
 var CodePageIdentifierToEncoding = map[int]string{
@@ -25,7 +30,7 @@ var CodePageIdentifierToEncoding = map[int]string{
 	1257:  "windows-1257",
 	28592: "iso-8859-2",
 	1250:  "windows-1250",
-	936:   "gb2312",
+	936:   "gbk",
 	52936: "hz-gb-2312",
 	54936: "gb18030",
 	950:   "big5",
@@ -40,18 +45,62 @@ var CodePageIdentifierToEncoding = map[int]string{
 	51932: "euc-jp",
 	50220: "iso-2022-jp",
 	50221: "csISO2022JP",
-	932:   "iso-2022-jp",
-	949:   "ks_c_5601-1987",
+	932:   "shift_jis",
+	949:   "euc-kr", // x/text EUC-KR decodes the Unified Hangul Code of code page 949.
 	51949: "euc-kr",
 	28593: "iso-8859-3",
 	28605: "iso-8859-15",
 	874:   "windows-874",
 	28599: "iso-8859-9",
 	1254:  "windows-1254",
-	65000: "utf-7",
 	65001: "utf-8",
 	20127: "us-ascii",
 	1258:  "windows-1258",
 	28591: "iso-8859-1",
-	1252:  "Windows-1252",
+	1252:  "windows-1252",
+}
+
+// DefaultCodePage is used by New for File.DefaultCodePage.
+const DefaultCodePage = 1252
+
+// propertyIDMessageCodePage is PR_MESSAGE_CODEPAGE, the code page of the String8 properties of a message.
+// References [MS-OXCMSG]: 2.2.1.4 PidTagMessageCodepage.
+const propertyIDMessageCodePage = 0x3FFD
+
+// GetCodePage returns the code page for the String8 properties of this property context:
+// PR_MESSAGE_CODEPAGE if it is set and supported, otherwise File.DefaultCodePage.
+func (propertyContext *PropertyContext) GetCodePage() int {
+	if propertyReader, err := propertyContext.GetPropertyReader(propertyIDMessageCodePage, nil); err == nil {
+		if codePage, err := propertyReader.GetInteger32(); err == nil && isCodePageSupported(int(codePage)) {
+			return int(codePage)
+		}
+	}
+
+	if propertyContext.File != nil {
+		return propertyContext.File.DefaultCodePage
+	}
+
+	return DefaultCodePage
+}
+
+// getCodePageEncoding returns the encoding of the code page, nil if it is unknown or not implemented.
+func getCodePageEncoding(codePageIdentifier int) encoding.Encoding {
+	name, ok := CodePageIdentifierToEncoding[codePageIdentifier]
+
+	if !ok {
+		return nil
+	}
+
+	codePageEncoding, err := ianaindex.IANA.Encoding(name)
+
+	if err != nil {
+		return nil
+	}
+
+	// Nil if the encoding is known but not implemented.
+	return codePageEncoding
+}
+
+func isCodePageSupported(codePageIdentifier int) bool {
+	return getCodePageEncoding(codePageIdentifier) != nil
 }

@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/rotisserie/eris"
-	"golang.org/x/text/encoding/ianaindex"
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -58,8 +57,9 @@ func NewPropertyReader(property Property, heapOnNode *HeapOnNode, file *File, lo
 }
 
 // WriteMessagePackValue writes the Message Pack format of the property value.
+// String8 values are decoded using the code page identifier.
 // Used to populate struct fields.
-func (propertyReader *PropertyReader) WriteMessagePackValue(writer *msgp.Writer) error {
+func (propertyReader *PropertyReader) WriteMessagePackValue(writer *msgp.Writer, codePageIdentifier int) error {
 	key := fmt.Sprintf("%d%d", propertyReader.Property.ID, propertyReader.Property.Type)
 
 	switch propertyReader.Property.Type {
@@ -78,13 +78,14 @@ func (propertyReader *PropertyReader) WriteMessagePackValue(writer *msgp.Writer)
 
 		return nil
 	case PropertyTypeString8:
-		value, err := propertyReader.GetString8(65001) // TODO - Get from called, this is UTF-8 for now.
+		value, err := propertyReader.GetString8(codePageIdentifier)
 
 		if err != nil {
 			return eris.Wrap(err, "failed to get string8")
 		}
 
-		if err := writer.WriteString(key); err != nil {
+		// The struct fields use the Unicode string type, ANSI files store their strings as String8.
+		if err := writer.WriteString(fmt.Sprintf("%d%d", propertyReader.Property.ID, PropertyTypeString)); err != nil {
 			return eris.Wrap(err, "failed to write key")
 		} else if err := writer.WriteString(value); err != nil {
 			return eris.Wrap(err, "failed to write value")
@@ -262,14 +263,19 @@ func (propertyReader *PropertyReader) DecodeString(data []byte) (string, error) 
 }
 
 // DecodeString8 decodes the PropertyTypeString8 using the code page identifier.
+// An unknown or unsupported code page falls back to File.DefaultCodePage, then to DefaultCodePage.
 func (propertyReader *PropertyReader) DecodeString8(data []byte, codePageIdentifier int) (string, error) {
-	encoding, err := ianaindex.IANA.Encoding(CodePageIdentifierToEncoding[codePageIdentifier])
+	codePageEncoding := getCodePageEncoding(codePageIdentifier)
 
-	if err != nil {
-		return "", eris.Wrapf(err, "failed to find IANA encoding: %d", codePageIdentifier)
+	if codePageEncoding == nil && propertyReader.File != nil {
+		codePageEncoding = getCodePageEncoding(propertyReader.File.DefaultCodePage)
 	}
 
-	return encoding.NewDecoder().String(string(data))
+	if codePageEncoding == nil {
+		codePageEncoding = getCodePageEncoding(DefaultCodePage)
+	}
+
+	return codePageEncoding.NewDecoder().String(string(data))
 }
 
 // GetDate returns the date value (Unix Nano epoch) of the property context item.

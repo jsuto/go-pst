@@ -17,8 +17,6 @@ and are not compatible with upstream's `v6`.
 
 Work in progress. Planned, roughly in this order:
 
-- ANSI (32-bit) PST files (upstream #52) and local descriptors with level > 0
-  (upstream #45)
 - attachment MIME type, Content-ID, inline flag and embedded messages
 - plain text, HTML and compressed RTF bodies (including HTML encapsulated
   in RTF)
@@ -35,6 +33,10 @@ Changes compared to upstream v6.0.2:
   header), with `PR_SENDER_SMTP_ADDRESS` / `PR_SENT_REPRESENTING_SMTP_ADDRESS`;
   `Mailbox.Address` returns the SMTP address, else the email address as stored
   (possibly X.500)
+- ANSI (32-bit) PST files (upstream #52): String8 properties are decoded with
+  the code page of the message (`PR_MESSAGE_CODEPAGE`), else
+  `File.DefaultCodePage` (1252 unless changed)
+- local descriptors (subnodes) with level > 0 (upstream #45)
 
 ## Usage
 

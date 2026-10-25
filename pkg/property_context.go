@@ -136,6 +136,8 @@ func (file *File) GetPropertyContext(heapOnNode *HeapOnNode) (*PropertyContext, 
 
 // Populate all properties to the decodable.
 func (propertyContext *PropertyContext) Populate(decodable msgp.Decodable, localDescriptors []LocalDescriptor) error {
+	codePage := propertyContext.GetCodePage()
+
 	// Populate the properties.
 	messagePackBuffer := &bytes.Buffer{}
 	messagePackWriter := msgp.NewWriter(messagePackBuffer)
@@ -193,7 +195,7 @@ func (propertyContext *PropertyContext) Populate(decodable msgp.Decodable, local
 		}
 
 		// TODO - This is a hot-path, optimize this.
-		err = propertyReader.WriteMessagePackValue(messagePackWriter)
+		err = propertyReader.WriteMessagePackValue(messagePackWriter, codePage)
 
 		if err != nil && !eris.Is(err, ErrPropertyNoData) {
 			return eris.Wrap(err, "failed to write MessagePack value")

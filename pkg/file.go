@@ -32,6 +32,8 @@ type File struct {
 	NodeBTree      BTreeStore
 	BlockBTree     BTreeStore
 	NameToIDMap    *NameToIDMap // nil if the Name-To-ID Map could not be read.
+	// DefaultCodePage decodes String8 properties (ANSI files) without PR_MESSAGE_CODEPAGE, and folder names.
+	DefaultCodePage int
 }
 
 // New is a constructor for creating PST files.
@@ -43,9 +45,10 @@ func New(reader io.ReaderAt) (*File, error) {
 // Initialization of the b-tree stores will be skipped respectively if not empty.
 func NewFromReaderWithBTrees(reader io.ReaderAt, nodeBTree BTreeStore, blockBTree BTreeStore) (*File, error) {
 	pstFile := &File{
-		Reader:     reader,
-		NodeBTree:  nodeBTree,
-		BlockBTree: blockBTree,
+		Reader:          reader,
+		NodeBTree:       nodeBTree,
+		BlockBTree:      blockBTree,
+		DefaultCodePage: DefaultCodePage,
 	}
 
 	isValidSignature, err := pstFile.IsValidSignature()

@@ -15,9 +15,8 @@ and are not compatible with upstream's `v6`.
 
 ## Status
 
-Work in progress. Planned, roughly in this order:
-
-- a converter package and `cmd/pst2eml`
+Reads Unicode and ANSI PST files and converts their mail to EML. Planned:
+test fixtures without personal data and robustness runs.
 
 Changes compared to upstream v6.0.2:
 
@@ -43,8 +42,55 @@ Changes compared to upstream v6.0.2:
   `PR_HTML`, compressed RTF is converted: RTF encapsulating HTML back to HTML
   ([MS-OXRTFEX]), other RTF to text (`ConvertRTF`); the RTF decompression
   follows [MS-OXRTFCP] (wrong dictionary and uncompressed RTF fixed)
+- converter to EML (`pkg/eml`) and `cmd/pst2eml`
+- `GetMessage` no longer prints to stdout
 
-## Usage
+## Converting to EML
+
+```bash
+go run ./cmd/pst2eml -o out/ mailbox.pst
+```
+
+writes one `.eml` per message into a directory per folder (`out/Inbox/1.eml`,
+...) and prints a report per folder: items read, converted, skipped (with the
+reason) and errors; details of errors and skipped attachments go to stderr.
+
+The `eml` package does the conversion:
+
+- `eml.Walk` calls a function for each item of each folder below the top of the
+  user's folders, with its folder path and whether it is in Deleted Items.
+  Search folders are skipped. Errors reading a folder or a message (also
+  panics) are passed to the function, the walk continues.
+- `eml.Convert` writes a message as RFC 822 / MIME. Messages with
+  `PR_TRANSPORT_MESSAGE_HEADERS` keep those headers (without the fields of the
+  original MIME structure), other messages (sent mail, drafts) get headers
+  built from their properties: From, Sender, To, Cc, Bcc (with SMTP
+  addresses; X.500 addresses without one are written as they are), Subject,
+  Date, Message-ID, In-Reply-To, References, Importance. The body is
+  `multipart/alternative` (text and HTML) in `multipart/related` (attachments
+  referenced by the HTML) in `multipart/mixed` (attachments, embedded messages
+  as `message/rfc822`). HTML keeps its bytes and charset.
+- Non-mail items (appointments, contacts, ...) and Enterprise Vault shortcuts
+  return a `*eml.SkipError`; `eml.Classify` decides by the message class.
+
+```go
+err := eml.Walk(pstFile, func(item eml.Item) error {
+  if item.Err != nil {
+    return nil // or count it
+  }
+
+  var buffer bytes.Buffer
+
+  if _, err := eml.Convert(&buffer, item.Message); err != nil {
+    return nil // *eml.SkipError or a conversion error
+  }
+
+  // buffer holds the message, item.FolderPath its folder.
+  return nil
+})
+```
+
+## Reading PST files
 
 ```bash
 go get github.com/jsuto/go-pst

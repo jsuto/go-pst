@@ -88,9 +88,17 @@ Found or deferred while working on the items above:
   generated structs (their keys use IDs >= 0x40000). None of the fields
   needed for EML conversion is named; if one is needed, look up its ID via
   `File.NameToIDMap`.
-- **Robustness:** the converter should recover from panics per message and
-  count the message as skipped; a fuzz test on `pst.New` and the message
-  walk (item 8).
+- **Robustness:** a fuzz test on `pst.New` and the message walk (item 8).
+  The converter (`eml.Walk`, `eml.Convert`) already recovers from panics per
+  message.
+- **S/MIME** (`IPM.Note.SMIME`, `IPM.Note.SMIME.MultipartSigned`): Outlook
+  stores the signed or encrypted MIME entity as the attachment `smime.p7m`;
+  the converter writes it as an ordinary attachment, so the signature is not
+  usable. Rebuild the message from that entity. No test PST has one.
+- **Meeting requests** are converted as mail with their HTML body; readpst
+  adds a `text/calendar` part built from the properties. Not done.
+- Attachments without data (`PR_ATTACH_DATA_BIN` empty, seen in
+  `backup.pst`: two PDFs) are written as empty parts; readpst drops them.
 
 ## Converter rules
 
@@ -140,6 +148,7 @@ mail).
 ## Tools
 
 ```bash
+go run ./cmd/pst2eml -o out/ <file.pst>          # convert to EML, report per folder
 go run ./tools/probe <file.pst> 2>folders.txt   # item/attachment counts, per folder on stderr
 go run ./tools/dump <file.pst> [header substring...]  # transport headers, DisplayTo/Cc, sender of matching messages
 readpst -e -8 -D -j 0 -o out/ <file.pst>        # reference output (brew install libpst)

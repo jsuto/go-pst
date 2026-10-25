@@ -18,7 +18,6 @@ package pst
 
 import (
 	_ "embed"
-	"fmt"
 	"github.com/jsuto/go-pst/pkg/properties"
 	"github.com/pkg/errors"
 	"github.com/rotisserie/eris"
@@ -232,13 +231,13 @@ func (file *File) newMessage(identifier Identifier, propertyContext *PropertyCon
 	messageClassPropertyReader, err := propertyContext.GetPropertyReader(26, localDescriptors)
 
 	if err != nil {
-		fmt.Printf("Failed to get message class property reader, falling back to properties.Message: %+v\n", eris.New(err.Error()))
+		// No message class, fall back to properties.Message.
 		messageProperties = &properties.Message{}
 	} else {
 		messageClass, err := readString(&messageClassPropertyReader, propertyContext.GetCodePage())
 
 		if err != nil {
-			fmt.Printf("Failed to get message class, falling back to properties.Message: %+v\n", eris.New(err.Error()))
+			// Unreadable message class, fall back to properties.Message.
 			messageProperties = &properties.Message{}
 		} else {
 			// https://learn.microsoft.com/en-us/office/vba/outlook/concepts/forms/item-types-and-message-classes
@@ -257,7 +256,7 @@ func (file *File) newMessage(identifier Identifier, propertyContext *PropertyCon
 			} else if messageClass == "IPM.DistList" {
 				messageProperties = &properties.AddressBook{}
 			} else {
-				fmt.Printf("Unmapped message class \"%s\", falling back to properties.Message...\n", messageClass)
+				// Unmapped message class, fall back to properties.Message.
 				messageProperties = &properties.Message{}
 			}
 		}
@@ -274,6 +273,28 @@ func (file *File) newMessage(identifier Identifier, propertyContext *PropertyCon
 		LocalDescriptors: localDescriptors,
 		Properties:       messageProperties,
 	}, nil
+}
+
+// propertyIDMessageClass is PR_MESSAGE_CLASS.
+const propertyIDMessageClass = 0x001A
+
+// GetMessageClass returns PR_MESSAGE_CLASS ("IPM.Note", "IPM.Appointment"...), "" if it is not set.
+func (message *Message) GetMessageClass() (string, error) {
+	propertyReader, err := message.PropertyContext.GetPropertyReader(propertyIDMessageClass, message.LocalDescriptors)
+
+	if eris.Is(err, ErrPropertyNotFound) || eris.Is(err, ErrPropertyNoData) {
+		return "", nil
+	} else if err != nil {
+		return "", eris.Wrap(err, "failed to get message class property reader")
+	}
+
+	messageClass, err := readString(&propertyReader, message.PropertyContext.GetCodePage())
+
+	if eris.Is(err, ErrPropertyNoData) {
+		return "", nil
+	}
+
+	return messageClass, err
 }
 
 // GetBodyRTF returns the decompressed RTF body (PR_RTF_COMPRESSED), may return ErrPropertyNotFound.

@@ -179,8 +179,8 @@ func FuzzANSI(f *testing.F) {
 	fuzzPST(f, "../../data/32-bit.pst")
 }
 
-// FuzzPrivate corrupts the private test PST (testdata/private, not in git): HTML and RTF bodies, attachments,
+// FuzzPrivate corrupts the private test PST (see PrivateTestPST): HTML and RTF bodies, attachments,
 // embedded messages. Its corpus holds only patch offsets and values, no content of the file.
 func FuzzPrivate(f *testing.F) {
-	fuzzPST(f, "../../testdata/private/backup.pst")
+	fuzzPST(f, PrivateTestPST(f))
 }

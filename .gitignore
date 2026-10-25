@@ -3,7 +3,7 @@
 protoc
 protoc-gen-go
 protoc-go-inject-tag
-# private test PSTs (real addresses), readpst output, local results
+# formerly the private test data (now outside the repository, see GO_PST_TESTDATA in CLAUDE.md)
 /testdata/private/
 # tool binaries
 /tools/probe/probe

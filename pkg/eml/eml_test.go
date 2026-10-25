@@ -198,10 +198,10 @@ func TestConvertNonMail(t *testing.T) {
 	}
 }
 
-// TestConvertPrivate converts the private test PST (testdata/private, not in git): sent mail without transport
+// TestConvertPrivate converts the private test PST (see eml.PrivateTestPST): sent mail without transport
 // headers, Bcc, an RTF-only body, attachments and forwarded messages. Only counts are checked, no content.
 func TestConvertPrivate(t *testing.T) {
-	pstFile := openPST(t, "../../testdata/private/backup.pst")
+	pstFile := openPST(t, eml.PrivateTestPST(t))
 
 	var converted, skipped, embedded, bcc, builtHeaders int
 

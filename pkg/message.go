@@ -162,7 +162,10 @@ func (folder *Folder) GetMessageIterator() (MessageIterator, error) {
 
 	messageTableContext, err := folder.GetMessageTableContext()
 
-	if err != nil {
+	if eris.Is(err, ErrTableContextNoRows) {
+		// The folder has a message count, but the contents table is empty.
+		return MessageIterator{}, ErrMessagesNotFound
+	} else if err != nil {
 		return MessageIterator{}, eris.Wrap(err, "failed to get message table context")
 	}
 

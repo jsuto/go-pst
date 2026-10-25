@@ -163,3 +163,43 @@ func TestLineWrapWriter(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestFoldLongLine(t *testing.T) {
+	for _, test := range []struct {
+		name, line string
+		folded     bool
+		// commaFolded is set if whitespace may be inserted after commas (address lists without whitespace).
+		commaFolded bool
+	}{
+		{"To", "To: " + strings.Repeat(`"Someone, Else" <someone@example.com>, `, 40), true, false},
+		{"To", "To: " + strings.Repeat(`<someone@example.com>,`, 60), true, true},
+		{"Subject", "Subject: short", false, false},
+		{"X-Long", "X-Long: " + strings.Repeat("a", 2000), false, false},
+		{"X-List", "X-List: " + strings.Repeat("a,", 1000), false, false},
+	} {
+		lines := foldLongLine(test.name, test.line)
+
+		if folded := len(lines) > 1; folded != test.folded {
+			t.Errorf("%s: folded %v, want %v", test.name, folded, test.folded)
+			continue
+		}
+
+		for i, line := range lines {
+			if test.folded && len(line) > maxLineLength {
+				t.Errorf("%s: line %d has %d characters", test.name, i, len(line))
+			} else if i > 0 && line[0] != ' ' && line[0] != '\t' {
+				t.Errorf("%s: continuation line %d doesn't start with whitespace", test.name, i)
+			}
+		}
+
+		got := strings.Join(lines, "")
+
+		if test.commaFolded {
+			got = strings.ReplaceAll(got, ", ", ",")
+		}
+
+		if got != test.line {
+			t.Errorf("%s: unfolded %q", test.name, got[:min(len(got), 80)])
+		}
+	}
+}

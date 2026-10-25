@@ -80,11 +80,15 @@ Found or deferred while working on the items above:
   ```
   Or run `tools/probe` on large real PSTs (upstream's report came from
   `WalkFolders` on unknown files, maybe large folders).
-- **Large PSTs:** the largest file tested is 29 MB. The EDRM Enron set as
-  republished on Hugging Face (`intellekthq/enron-ferc-pst`, CC BY 3.0
+- **Large PSTs:** tested with the two largest files of the EDRM Enron set
+  as republished on Hugging Face (`intellekthq/enron-ferc-pst`, CC BY 3.0
   US, 171 PSTs, 77 GiB, up to 1.96 GiB each, made by the same ZL
-  Technologies tool as `data/enron.pst`) is good for scale and speed
-  tests, not for Outlook fidelity. No public PST over 4 GiB is known.
+  Technologies tool as `data/enron.pst`; downloaded to
+  `../piler-ee/testdata/pst/large/`): `zl_dasovich-j_000.pst` (1.96 GiB,
+  33422 messages) and `_001` (1.88 GiB, 36593), about 12 s each, at most
+  190 MB resident; same message count as readpst, 12121 of 12123
+  attachments identical to readpst's. Not tested: PSTs over 4 GiB (no
+  public one is known) and real Exchange or Outlook exports of that size.
 - **S/MIME from a real PST:** the converter rebuilds S/MIME messages from
   their entity (tested with OpenSSL samples, `pkg/eml/testdata/smime`); no
   test PST has an S/MIME message, so the PST side (class, attachment) is

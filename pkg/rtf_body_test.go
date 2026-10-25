@@ -1,6 +1,7 @@
 package pst_test
 
 import (
+	"strings"
 	"testing"
 
 	pst "github.com/jsuto/go-pst/pkg"
@@ -74,6 +75,23 @@ func TestConvertRTFHTML(t *testing.T) {
 		t.Fatalf("got text %q, want HTML", got.Text)
 	} else if got.HTML != want {
 		t.Errorf("got  %q\nwant %q", got.HTML, want)
+	}
+}
+
+// TestConvertRTFMalformed checks input that used to overflow the stack or the position.
+func TestConvertRTFMalformed(t *testing.T) {
+	for name, rtf := range map[string]string{
+		"repeated \\*":      "{\\rtf1 {" + strings.Repeat("\\*", 1000000) + "\\fonttbl x} text}",
+		"huge \\bin":        "{\\rtf1 a\\bin9223372036854775807 b}",
+		"negative \\bin":    "{\\rtf1 a\\bin-5 b}",
+		"huge \\u and \\uc": "{\\rtf1 \\uc99999999999\\u99999999999 a}",
+	} {
+		_ = pst.ConvertRTF(rtf)
+		t.Logf("%s: ok", name)
+	}
+
+	if got := pst.ConvertRTF("{\\rtf1 {\\*\\*\\unknown hidden}shown}").Text; got != "shown" {
+		t.Errorf("got %q, want %q", got, "shown")
 	}
 }
 

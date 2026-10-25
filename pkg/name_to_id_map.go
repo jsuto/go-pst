@@ -76,7 +76,7 @@ const (
 // NameToIDMap represents the Name-To-ID Map.
 type NameToIDMap struct {
 	PropertySets []string
-	NameToID     map[int]int
+	NameToID     map[int64]int // Key: the property set index << 32 | the numerical name.
 	IDToName     map[int]int
 	StringToID   map[string]int
 	IDToString   map[int]string
@@ -186,7 +186,7 @@ func parseNameToIDMap(guidStream []byte, entryStream []byte, stringStream []byte
 
 	// Process the Entry Stream (NAMEID records).
 	// References "2.4.7.1 NAMEID"
-	nameToID := make(map[int]int)
+	nameToID := make(map[int64]int)
 	idToName := make(map[int]int)
 	stringToID := make(map[string]int)
 	idToString := make(map[int]string)
@@ -215,7 +215,7 @@ func parseNameToIDMap(guidStream []byte, entryStream []byte, stringStream []byte
 				propertySetIndex = -1
 			}
 
-			nameToID[int(namedPropertyIdentifier)|propertySetIndex<<32] = namedPropertyID
+			nameToID[int64(namedPropertyIdentifier)|int64(propertySetIndex)<<32] = namedPropertyID
 			idToName[namedPropertyID] = int(namedPropertyIdentifier)
 		} else {
 			// The named property identifier is the byte offset into the String Stream
@@ -256,7 +256,7 @@ func parseNameToIDMap(guidStream []byte, entryStream []byte, stringStream []byte
 
 // GetPropertyID returns the Name-To-ID property ID.
 func (nameToIDMap *NameToIDMap) GetPropertyID(key int, propertySet PropertySet) (int, error) {
-	nameToIDKey := int(propertySet)<<32 | key
+	nameToIDKey := int64(propertySet)<<32 | int64(key)
 
 	value, found := nameToIDMap.NameToID[nameToIDKey]
 

@@ -65,11 +65,12 @@ type rtfConverter struct {
 	isHTML   bool
 	output   strings.Builder
 
-	state       rtfGroupState
-	stack       []rtfGroupState
-	groupStart  bool // The next token is the first of a group.
-	ignorable   bool // \* was seen at the start of the group.
-	skipPending int  // Characters to skip after \uN.
+	state          rtfGroupState
+	stack          []rtfGroupState
+	groupStart     bool // The next token is the first of a group.
+	keepGroupStart bool // Set by \*, the destination control word follows.
+	ignorable      bool // \* was seen at the start of the group.
+	skipPending    int  // Characters to skip after \uN.
 
 	defaultCodePage int
 	fontCodePages   map[int]int
@@ -140,6 +141,12 @@ func (converter *rtfConverter) convert() {
 			}
 		case '\\':
 			converter.controlSequence()
+
+			if converter.keepGroupStart {
+				converter.keepGroupStart = false
+
+				continue
+			}
 		case '\r', '\n':
 			// Line breaks in the RTF source are not text, nor the first token of a group.
 			continue
@@ -215,15 +222,9 @@ func (converter *rtfConverter) controlSymbol(character byte) {
 		}
 	case '*':
 		if converter.groupStart {
+			// The next control word is an ignorable destination, the main loop keeps groupStart for it.
 			converter.ignorable = true
-			// Keep groupStart for the destination control word.
-			converter.groupStart = true
-			converter.position = converter.skipSpaces(converter.position)
-
-			if converter.position < len(converter.rtf) && converter.rtf[converter.position] == '\\' {
-				converter.position++
-				converter.controlSequence()
-			}
+			converter.keepGroupStart = true
 		}
 	case '\\', '{', '}':
 		converter.text(character)
@@ -236,14 +237,6 @@ func (converter *rtfConverter) controlSymbol(character byte) {
 	case '\r', '\n':
 		converter.emit("\n")
 	}
-}
-
-func (converter *rtfConverter) skipSpaces(position int) int {
-	for position < len(converter.rtf) && (converter.rtf[position] == '\r' || converter.rtf[position] == '\n') {
-		position++
-	}
-
-	return position
 }
 
 func (converter *rtfConverter) controlWord(word string, parameter int, hasParameter bool) {
@@ -313,7 +306,11 @@ func (converter *rtfConverter) controlWord(word string, parameter int, hasParame
 	case "bin":
 		// Binary data of the given length.
 		if hasParameter && parameter > 0 {
-			converter.position = min(converter.position+parameter, len(converter.rtf))
+			if parameter > len(converter.rtf)-converter.position {
+				converter.position = len(converter.rtf)
+			} else {
+				converter.position += parameter
+			}
 		}
 	default:
 		if symbol, ok := rtfSymbols[word]; ok {

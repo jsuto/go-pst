@@ -39,8 +39,16 @@ import (
 	"github.com/rotisserie/eris"
 )
 
-// MaxDepth limits the nesting of embedded messages.
-const MaxDepth = 10
+// Limits of a Convert call, so malformed files (attachments referencing the same embedded message at each level,
+// for example) can't make the output grow exponentially.
+const (
+	// MaxDepth limits the nesting of embedded messages.
+	MaxDepth = 10
+	// MaxEmbeddedMessages limits the embedded messages of a message, including nested ones.
+	MaxEmbeddedMessages = 1000
+	// MaxAttachments limits the attachments of a message, including those of embedded messages.
+	MaxAttachments = 10000
+)
 
 // SkipError is returned by Convert for items that are not converted.
 type SkipError struct {
@@ -93,6 +101,9 @@ func Convert(writer io.Writer, message *pst.Message) (result Result, err error) 
 
 type converter struct {
 	result *Result
+	// Counts against MaxEmbeddedMessages and MaxAttachments.
+	embeddedMessages int
+	attachments      int
 }
 
 // entity is a MIME entity: a multipart with its parts, or a leaf with its content.
@@ -379,6 +390,13 @@ func (converter *converter) buildAttachments(message *pst.Message, html []byte, 
 			converter.result.SkippedAttachments = append(converter.result.SkippedAttachments, fmt.Sprintf("attachment %d (%q): %s", i+1, filename, reason))
 		}
 
+		if converter.attachments >= MaxAttachments {
+			skip("too many attachments")
+			continue
+		}
+
+		converter.attachments++
+
 		attachmentEntity := &entity{parameters: map[string]string{}}
 
 		switch {
@@ -391,7 +409,12 @@ func (converter *converter) buildAttachments(message *pst.Message, html []byte, 
 			} else if depth+1 >= MaxDepth {
 				skip("embedded messages nested too deep")
 				continue
+			} else if converter.embeddedMessages >= MaxEmbeddedMessages {
+				skip("too many embedded messages")
+				continue
 			}
+
+			converter.embeddedMessages++
 
 			attachmentEntity.mediaType = "message/rfc822"
 			attachmentEntity.encoding = "8bit"

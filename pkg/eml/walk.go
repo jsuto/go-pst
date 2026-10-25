@@ -50,7 +50,7 @@ func Walk(file *pst.File, walkFunc WalkFunc) error {
 		return eris.Wrap(err, "failed to get root folder")
 	}
 
-	walker := &walker{file: file, walkFunc: walkFunc, inIPMSubtree: true}
+	walker := &walker{file: file, walkFunc: walkFunc, inIPMSubtree: true, visited: map[pst.Identifier]bool{}}
 
 	if ipmSubtreeIdentifier, err := file.GetIPMSubtreeIdentifier(); err == nil {
 		walker.ipmSubtreeIdentifier = ipmSubtreeIdentifier
@@ -61,7 +61,7 @@ func Walk(file *pst.File, walkFunc WalkFunc) error {
 		walker.deletedItemsIdentifier = deletedItemsIdentifier
 	}
 
-	return walker.walkFolder(&rootFolder, nil, false)
+	return walker.walkFolder(&rootFolder, nil, false, 0)
 }
 
 type walker struct {
@@ -70,9 +70,18 @@ type walker struct {
 	ipmSubtreeIdentifier   pst.Identifier
 	deletedItemsIdentifier pst.Identifier
 	inIPMSubtree           bool
+	// visited guards against cycles in the folder hierarchy of malformed files.
+	visited map[pst.Identifier]bool
 }
 
-func (walker *walker) walkFolder(folder *pst.Folder, folderPath []string, inDeletedItems bool) error {
+func (walker *walker) walkFolder(folder *pst.Folder, folderPath []string, inDeletedItems bool, depth int) error {
+	if walker.visited[folder.Identifier] || depth > pst.MaxFolderDepth {
+		return walker.walkFunc(Item{FolderPath: folderPath, Folder: folder, InDeletedItems: inDeletedItems,
+			Err: fmt.Errorf("folder %d: %w", folder.Identifier, pst.ErrFolderStructureInvalid)})
+	}
+
+	walker.visited[folder.Identifier] = true
+
 	isIPMSubtree := walker.ipmSubtreeIdentifier != 0 && folder.Identifier == walker.ipmSubtreeIdentifier
 	inDeletedItems = inDeletedItems || (walker.deletedItemsIdentifier != 0 && folder.Identifier == walker.deletedItemsIdentifier)
 
@@ -106,7 +115,7 @@ func (walker *walker) walkFolder(folder *pst.Folder, folderPath []string, inDele
 			subFolderPath = []string{subFolders[i].Name}
 		}
 
-		if err := walker.walkFolder(&subFolders[i], subFolderPath, inDeletedItems); err != nil {
+		if err := walker.walkFolder(&subFolders[i], subFolderPath, inDeletedItems, depth+1); err != nil {
 			return err
 		}
 	}

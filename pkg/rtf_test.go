@@ -2,6 +2,7 @@ package pst_test
 
 import (
 	"encoding/hex"
+	"errors"
 	"strings"
 	"testing"
 
@@ -50,6 +51,20 @@ func TestRTFDecode(t *testing.T) {
 			t.Errorf("%s: %+v", test.name, err)
 		} else if got != test.want {
 			t.Errorf("%s: got %q, want %q", test.name, got, test.want)
+		}
+	}
+}
+
+// TestRTFDecodeSizes checks RAWSIZE values that don't fit the data.
+func TestRTFDecodeSizes(t *testing.T) {
+	for _, header := range []string{
+		"0f000000ffffffff4d454c4100000000", // Uncompressed, RAWSIZE 0xFFFFFFFF.
+		"ffffffffffffffff4c5a467500000000", // Compressed, COMPSIZE and RAWSIZE 0xFFFFFFFF.
+	} {
+		data, _ := hex.DecodeString(header + "7b7d0a")
+
+		if _, err := pst.NewRTFDecoder().Decode(data); !errors.Is(err, pst.ErrRTFInvalid) {
+			t.Errorf("%s: got %v, want %v", header, err, pst.ErrRTFInvalid)
 		}
 	}
 }

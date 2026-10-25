@@ -57,30 +57,33 @@ func (rtfDecoder *RTFDecoder) Decode(data []byte) (string, error) {
 	}
 
 	// COMPSIZE is the size of the data following it.
-	compressedSize := int(binary.LittleEndian.Uint32(data[:4]))
-	uncompressedSize := int(binary.LittleEndian.Uint32(data[4:8]))
+	// The sizes are compared as int64, so they can't become negative on 32-bit platforms.
+	compressedSize := int64(binary.LittleEndian.Uint32(data[:4]))
+	rawSize := int64(binary.LittleEndian.Uint32(data[4:8]))
 	compressionSignature := data[8:12]
 
 	end := len(data)
 
-	if compressedSize >= 12 && 4+compressedSize < end {
-		end = 4 + compressedSize
+	if compressedSize >= 12 && 4+compressedSize < int64(end) {
+		end = int(4 + compressedSize)
 	}
 
 	input := data[rtfHeaderSize:end]
 
 	switch {
 	case bytes.Equal(compressionSignature, CompressionTypeUncompressed):
-		if uncompressedSize > len(input) {
+		if rawSize > int64(len(input)) {
 			return "", ErrRTFInvalid
 		}
 
-		return string(input[:uncompressedSize]), nil
+		return string(input[:rawSize]), nil
 	case !bytes.Equal(compressionSignature, CompressionTypeCompressed):
 		return "", eris.Wrap(ErrRTFInvalid, "unknown compression signature")
-	case uncompressedSize > (len(input)+1)*rtfMaxExpansion:
+	case rawSize > int64(len(input)+1)*rtfMaxExpansion:
 		return "", eris.Wrap(ErrRTFInvalid, "uncompressed size too large")
 	}
+
+	uncompressedSize := int(rawSize)
 
 	dictionary := make([]byte, rtfDictionarySize)
 	writePosition := copy(dictionary, LZFUHeader)

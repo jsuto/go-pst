@@ -126,21 +126,28 @@ Found or deferred while working on the items above:
   Deleted Items), all with transport headers, which are synthetic and
   broken (X.500 addresses in odd syntax). Good for robustness, not for
   address fidelity.
-- `data/32-bit.pst`: ANSI, fails today (#52).
+- `data/32-bit.pst`: ANSI, 64 KB, one appointment (no mail), ASCII only.
 - `data/support.pst`: from the Hacking Team leak, real people's
   addresses. Never use it as a fixture or quote its content.
-- `testdata/private/` (gitignored, **never commit**): `backup.pst` (18 MB,
-  an Outlook.com test account exported by classic Outlook: sent mail
-  without transport headers, Cc, Bcc, RTF-only body, 14 attachments, a
-  13 MB attachment, forwarded-as-attachment, meeting invites, a draft,
-  `Projects/2026` folder, Deleted Items), `readpst-backup/` (readpst's
-  output of it, to compare), folder counts of earlier runs. It has real
-  addresses; don't paste them into commits, issues or fixtures.
+- Private test data, outside of this repository in `../piler-ee/testdata/pst/`
+  (excluded locally via piler-ee's `.git/info/exclude`, **never commit**
+  it in either repository): `backup.pst` (18 MB, an Outlook.com test
+  account exported by classic Outlook: sent mail without transport
+  headers, Cc, Bcc, RTF-only body, 14 attachments, a 13 MB attachment,
+  forwarded-as-attachment, meeting invites, a draft, `Projects/2026`
+  folder, Deleted Items), `readpst-backup/` (readpst's output of it, to
+  compare), folder counts of earlier runs (`gopst-backup-folders.txt` is
+  the baseline of `tools/probe`). It has real addresses and a real name;
+  don't paste them into commits, issues or fixtures.
+  The tests using it run only with the directory in `GO_PST_TESTDATA`:
+  ```bash
+  GO_PST_TESTDATA=../piler-ee/testdata/pst go test ./...
+  ```
 
-Baseline of this code on `backup.pst`: 117 items (22 messages, 89+2
-calendar items, 2 contacts...), 21 attachments, no errors; 11 messages
-with transport headers. readpst counts 24 messages (meeting invites as
-mail).
+Baseline on `backup.pst`: 117 items (22 messages, 2 meeting requests, 91
+appointments, 2 contacts), 21 attachments, no errors; 11 messages with
+transport headers. `pst2eml` converts 24 (as readpst) and skips 93
+non-mail items.
 
 ## Tools
 

@@ -3,6 +3,8 @@
 # Stops at the first crash; the failing input is written to testdata/fuzz/ of the package
 # and runs with every `go test` afterwards.
 #
+# FuzzPrivate needs GO_PST_TESTDATA (see CLAUDE.md), it is skipped otherwise.
+#
 # Usage: tools/fuzz.sh [time per target, default 5m]
 set -e
 cd "$(dirname "$0")/.."

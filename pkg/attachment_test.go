@@ -11,13 +11,11 @@ import (
 	"github.com/jsuto/go-pst/pkg/properties"
 )
 
-// TestEmbeddedMessages reads the messages forwarded as attachment in the private test PST (testdata/private, not in git).
+// TestEmbeddedMessages reads the messages forwarded as attachment in the private test PST (see privateTestPST).
 func TestEmbeddedMessages(t *testing.T) {
-	reader, err := os.Open("../testdata/private/backup.pst")
+	reader, err := os.Open(privateTestPST(t))
 
-	if errors.Is(err, os.ErrNotExist) {
-		t.Skip("testdata/private/backup.pst not found")
-	} else if err != nil {
+	if err != nil {
 		t.Fatalf("Failed to open PST file: %+v", err)
 	}
 

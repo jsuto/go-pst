@@ -88,12 +88,12 @@ func TestBodyText(t *testing.T) {
 
 var metaCharset = regexp.MustCompile(`(?i)<meta[^>]*charset=["']?([a-z0-9_-]+)`)
 
-// TestBodyPrivate checks the bodies of the private test PST (testdata/private, not in git):
+// TestBodyPrivate checks the bodies of the private test PST (see privateTestPST):
 // HTML in the code page of PR_INTERNET_CPID, one plain text body, one RTF-only body and one empty body.
 func TestBodyPrivate(t *testing.T) {
 	var htmlCount, textCount, rtfCount, emptyCount, embeddedCount int
 
-	walkMessages(t, "../testdata/private/backup.pst", func(folder *pst.Folder, message *pst.Message) {
+	walkMessages(t, privateTestPST(t), func(folder *pst.Folder, message *pst.Message) {
 		if _, ok := message.Properties.(*properties.Message); !ok {
 			return
 		}

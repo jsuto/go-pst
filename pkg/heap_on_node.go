@@ -131,15 +131,12 @@ func (file *File) GetHeapOnNodeReaderFromHID(hid Identifier, heapOnNodeReader He
 	}
 
 	blockIndex := int(hid) >> 16
-	blockOffset := int64(0)
 
-	if blockIndex > 0 {
-		if blockIndex > len(heapOnNodeReader.Blocks) {
-			return nil, ErrBlockIndexNotFound
-		}
-
-		blockOffset = heapOnNodeReader.BlockOffsets[blockIndex]
+	if blockIndex >= len(heapOnNodeReader.Blocks) {
+		return nil, ErrBlockIndexNotFound
 	}
+
+	blockOffset := heapOnNodeReader.BlockOffsets[blockIndex]
 
 	pageMapOffset := make([]byte, 2)
 
@@ -165,6 +162,10 @@ func (file *File) GetHeapOnNodeReaderFromHID(hid Identifier, heapOnNodeReader He
 	// Note that the block start offset is only for this singular block, not across all blocks.
 	blockStartOffset := int64(binary.LittleEndian.Uint16(startOffset))
 	blockEndOffset := int64(binary.LittleEndian.Uint16(endOffset))
+
+	if blockEndOffset < blockStartOffset || blockEndOffset > heapOnNodeReader.Blocks[blockIndex].Size() {
+		return nil, ErrHeapOnNodeAllocationInvalid
+	}
 
 	return NewHeapOnNodeReader(file.EncryptionType, *io.NewSectionReader(&heapOnNodeReader.Blocks[blockIndex], blockStartOffset, blockEndOffset-blockStartOffset)), nil
 }

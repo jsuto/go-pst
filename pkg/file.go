@@ -86,10 +86,8 @@ func NewFromReaderWithBTrees(reader io.ReaderAt, nodeBTree BTreeStore, blockBTre
 			return nil, err
 		}
 
-		pstFile.WalkAndCreateBTree(nodeBTreeOffset, BTreeTypeNode, pstFile.NodeBTree)
-
-		if err != nil {
-			return nil, err
+		if err := pstFile.WalkAndCreateBTree(nodeBTreeOffset, BTreeTypeNode, pstFile.NodeBTree); err != nil {
+			return nil, eris.Wrap(err, "failed to read the node b-tree")
 		}
 	}
 
@@ -100,10 +98,8 @@ func NewFromReaderWithBTrees(reader io.ReaderAt, nodeBTree BTreeStore, blockBTre
 			return nil, err
 		}
 
-		pstFile.WalkAndCreateBTree(blockBTreeOffset, BTreeTypeBlock, pstFile.BlockBTree)
-
-		if err != nil {
-			return nil, err
+		if err := pstFile.WalkAndCreateBTree(blockBTreeOffset, BTreeTypeBlock, pstFile.BlockBTree); err != nil {
+			return nil, eris.Wrap(err, "failed to read the block b-tree")
 		}
 	}
 

@@ -74,6 +74,12 @@ func (file *File) GetPropertyContext(heapOnNode *HeapOnNode) (*PropertyContext, 
 		return nil, eris.Wrap(err, "failed to get b-tree-on-heap header")
 	}
 
+	// The records of a property context are 2-byte keys (property IDs) and 6-byte values.
+	// References [MS-PST]: 2.3.3.1 Accessing the PC BTHHEADER.
+	if btreeOnHeapHeader.KeySize != 2 || btreeOnHeapHeader.ValueSize != 6 {
+		return nil, ErrPropertyContextInvalid
+	}
+
 	keyTableReader, err := file.GetHeapOnNodeReaderFromHNID(btreeOnHeapHeader.HIDRoot, *heapOnNode.Reader)
 
 	if err != nil {

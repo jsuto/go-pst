@@ -126,6 +126,12 @@ func (messageIterator *MessageIterator) Next() bool {
 		currentMessage = message
 	}
 
+	if currentMessage == nil {
+		// The row has no message identifier.
+		messageIterator.err = eris.Wrapf(ErrMessageIdentifierTypeInvalid, "row %d of the contents table has no message identifier", messageIterator.currentIndex)
+		return false
+	}
+
 	messageIterator.currentIndex++
 	messageIterator.currentMessage = currentMessage
 

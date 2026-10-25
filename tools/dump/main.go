@@ -58,6 +58,9 @@ func main() {
 				if strings.Contains(h, id) || strings.Contains(m.GetSubject(), id) {
 					fmt.Printf("== %s\n--- transport headers:\n%s\n--- Subject=%q DisplayTo=%q DisplayCc=%q DisplayBcc=%q SenderAddressType=%q SenderEmailAddress=%q InternetMessageId=%q\n",
 						folder.Name, h, m.GetSubject(), m.GetDisplayTo(), m.GetDisplayCc(), m.GetDisplayBcc(), m.GetSenderAddressType(), m.GetSenderEmailAddress(), m.GetInternetMessageId())
+					sender, _ := it.Value().GetSender()
+					from, _ := it.Value().GetSentRepresenting()
+					fmt.Printf("--- sender name=%q address=%q; sent representing name=%q address=%q\n", sender.DisplayName, sender.Address(), from.DisplayName, from.Address())
 					for _, r := range recipients {
 						fmt.Printf("--- recipient type=%d p1=%v name=%q addrtype=%q email=%q smtp=%q\n", r.Type, r.P1, r.DisplayName, r.AddressType, r.EmailAddress, r.SMTPAddress)
 					}

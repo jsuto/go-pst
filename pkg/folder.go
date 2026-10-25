@@ -183,7 +183,22 @@ func (file *File) WalkFolders(walkFolderFunc WalkFolderFunc) error {
 }
 
 // WalkFolders recursively walks the sub-folders of this folder.
+// A folder referenced twice (a cycle in a malformed file) or nested deeper than MaxFolderDepth returns
+// ErrFolderStructureInvalid.
 func (folder *Folder) WalkFolders(walkFolderFunc WalkFolderFunc) error {
+	return folder.walkFolders(walkFolderFunc, map[Identifier]bool{}, 0)
+}
+
+// MaxFolderDepth limits the nesting of folders.
+const MaxFolderDepth = 100
+
+func (folder *Folder) walkFolders(walkFolderFunc WalkFolderFunc, visited map[Identifier]bool, depth int) error {
+	if visited[folder.Identifier] || depth > MaxFolderDepth {
+		return eris.Wrapf(ErrFolderStructureInvalid, "folder %d", folder.Identifier)
+	}
+
+	visited[folder.Identifier] = true
+
 	if err := walkFolderFunc(folder); err != nil {
 		return eris.Wrap(err, "failed during calling walk folder function")
 	}
@@ -195,7 +210,7 @@ func (folder *Folder) WalkFolders(walkFolderFunc WalkFolderFunc) error {
 	}
 
 	for _, subFolder := range subFolders {
-		if err := subFolder.WalkFolders(walkFolderFunc); err != nil {
+		if err := subFolder.walkFolders(walkFolderFunc, visited, depth+1); err != nil {
 			return eris.Wrap(err, "failed to walk folders")
 		}
 	}

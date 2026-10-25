@@ -8,5 +8,7 @@ protoc-go-inject-tag
 # tool binaries
 /tools/probe/probe
 /tools/dump/dump
+/cmd/pst2eml/pst2eml
+/pst2eml
 # written by the upstream example test (pkg/doc_test.go)
 /pkg/attachments/

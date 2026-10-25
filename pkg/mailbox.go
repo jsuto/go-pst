@@ -17,6 +17,8 @@
 package pst
 
 import (
+	"strings"
+
 	"github.com/rotisserie/eris"
 )
 
@@ -103,7 +105,57 @@ func (message *Message) getMailbox(nameID uint16, addressTypeID uint16, emailAdd
 		*field.value = value
 	}
 
+	if mailbox.SMTPAddress == "" && strings.EqualFold(mailbox.AddressType, "EX") && mailbox.EmailAddress != "" {
+		mailbox.SMTPAddress = message.getCreatorSMTPAddress(mailbox.EmailAddress, codePage)
+	}
+
 	return mailbox, nil
+}
+
+// Property IDs of the creator and last modifier of a message.
+// References [MS-OXPROPS].
+const (
+	propertyIDCreatorEmailAddress      = 0x4023 // PR_CREATOR_EMAIL_ADDR
+	propertyIDLastModifierEmailAddress = 0x4025 // PR_LAST_MODIFIER_EMAIL_ADDR
+	propertyIDCreatorSMTPAddress       = 0x5D0A // PR_CREATOR_SMTP_ADDRESS
+	propertyIDLastModifierSMTPAddress  = 0x5D0B // PR_LAST_MODIFIER_SMTP_ADDRESS
+)
+
+// getCreatorSMTPAddress returns the SMTP address of the creator or last modifier of the message
+// if their X.500 address is the given one, otherwise "".
+// Items created in Outlook (sent meeting requests, for example) store the sender only as an X.500 address.
+func (message *Message) getCreatorSMTPAddress(x500Address string, codePage int) string {
+	for _, ids := range [][2]uint16{
+		{propertyIDCreatorEmailAddress, propertyIDCreatorSMTPAddress},
+		{propertyIDLastModifierEmailAddress, propertyIDLastModifierSMTPAddress},
+	} {
+		if emailAddress := message.readStringProperty(ids[0], codePage); !strings.EqualFold(emailAddress, x500Address) {
+			continue
+		}
+
+		if smtpAddress := message.readStringProperty(ids[1], codePage); smtpAddress != "" {
+			return smtpAddress
+		}
+	}
+
+	return ""
+}
+
+// readStringProperty returns the string property of the message, "" if it is missing or unreadable.
+func (message *Message) readStringProperty(propertyID uint16, codePage int) string {
+	propertyReader, err := message.PropertyContext.GetPropertyReader(propertyID, message.LocalDescriptors)
+
+	if err != nil {
+		return ""
+	}
+
+	value, err := readString(&propertyReader, codePage)
+
+	if err != nil {
+		return ""
+	}
+
+	return value
 }
 
 // readString reads a Unicode or 8-bit string property, String8 is decoded using the code page identifier.

@@ -88,9 +88,6 @@ Found or deferred while working on the items above:
   generated structs (their keys use IDs >= 0x40000). None of the fields
   needed for EML conversion is named; if one is needed, look up its ID via
   `File.NameToIDMap`.
-- **Robustness:** a fuzz test on `pst.New` and the message walk (item 8).
-  The converter (`eml.Walk`, `eml.Convert`) already recovers from panics per
-  message.
 - **S/MIME** (`IPM.Note.SMIME`, `IPM.Note.SMIME.MultipartSigned`): Outlook
   stores the signed or encrypted MIME entity as the attachment `smime.p7m`;
   the converter writes it as an ordinary attachment, so the signature is not
@@ -150,11 +147,19 @@ mail).
 ```bash
 go run ./cmd/pst2eml -o out/ <file.pst>          # convert to EML, report per folder
 go run ./tools/probe <file.pst> 2>folders.txt   # item/attachment counts, per folder on stderr
+tools/fuzz.sh [5m]                               # all fuzz targets, 4 workers (at most 5 processes)
 go run ./tools/dump <file.pst> [header substring...]  # transport headers, DisplayTo/Cc, sender of matching messages
 readpst -e -8 -D -j 0 -o out/ <file.pst>        # reference output (brew install libpst)
 python3 -I tools/eml-check/hdrs.py out/          # header statistics of a directory of .eml
 python3 -I tools/eml-check/summary.py out/       # per message: headers and MIME structure
 ```
+
+Fuzzing: `tools/fuzz.sh` (about 5 minutes per target) before merging changes
+to the parsing code (b-trees, heap, table/property contexts, local
+descriptors, RTF, the converter); a long run (an hour or overnight per
+target) before a release Piler picks up. Never more than 5 test processes at
+once (`-parallel 4`). Crashing inputs stay in `testdata/fuzz/` and run with
+every `go test`.
 
 ## References
 

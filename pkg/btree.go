@@ -168,7 +168,7 @@ func (file *File) GetBTreeNodeRawEntries(btreeNodeOffset int64, callback func([]
 	case FormatTypeUnicode:
 		outputBuffer = make([]byte, 512)
 	case FormatTypeUnicode4k:
-		outputBuffer = make([]byte, 4056) // TODO - Check
+		outputBuffer = make([]byte, 4096) // The entries (4056 bytes) are followed by cEnt, cEntMax, cbEnt, cLevel.
 	case FormatTypeANSI:
 		outputBuffer = make([]byte, 512)
 	default:
@@ -190,6 +190,7 @@ func (file *File) GetBTreeNodeEntries(btreeNodeOffset int64, btreeType BTreeType
 
 	if err != nil {
 		callback(nil, 0, errors.WithStack(err))
+		return
 	}
 
 	file.GetBTreeNodeRawEntries(btreeNodeOffset, func(btreeNodeEntry []byte, err error) {
@@ -201,6 +202,13 @@ func (file *File) GetBTreeNodeEntries(btreeNodeOffset int64, btreeType BTreeType
 		btreeNodeEntryCount := file.GetBTreeNodeEntryCount(btreeNodeEntry)
 		//btreeNodeLevel := file.GetBTreeNodeLevel(btreeNodeEntry) // Of children.
 		btreeNodeEntrySize := file.GetBTreeNodeEntrySize(btreeNodeEntry)
+
+		// The entries must fit in the page and be large enough for the fields read below.
+		if int(btreeNodeEntrySize) < file.getMinimumBTreeEntrySize() || int(btreeNodeEntryCount)*int(btreeNodeEntrySize) > file.getBTreeEntriesSize() {
+			callback(nil, 0, ErrBTreeNodeInvalid)
+			return
+		}
+
 		btreeNodeEntries := make([]BTreeNode, btreeNodeEntryCount)
 
 		for i := 0; i < int(btreeNodeEntryCount); i++ {
@@ -397,28 +405,63 @@ func (file *File) GetParentBTreeNodeLevel(btreeNodeOffset int64) (uint8, error) 
 }
 
 // WalkAndCreateBTree walks the b-tree and updates the given b-tree store.
-func (file *File) WalkAndCreateBTree(btreeOffset int64, btreeType BTreeType, btreeStore BTreeStore) {
+// Malformed b-trees (conflicting entries, child pages not below their parent's level) return an error.
+func (file *File) WalkAndCreateBTree(btreeOffset int64, btreeType BTreeType, btreeStore BTreeStore) error {
+	return file.walkAndCreateBTree(btreeOffset, btreeType, btreeStore, 256)
+}
+
+// walkAndCreateBTree walks the b-tree page, whose level must be below maxLevel (so cycles end).
+func (file *File) walkAndCreateBTree(btreeOffset int64, btreeType BTreeType, btreeStore BTreeStore, maxLevel int) error {
+	var walkErr error
+
 	file.GetBTreeNodeEntries(btreeOffset, btreeType, func(nodeEntries []BTreeNode, nodeLevel uint8, err error) {
-		if nodeLevel > 0 {
-			// Branch node entries.
-			for i := 0; i < len(nodeEntries); i++ {
-				nodeEntry := nodeEntries[i]
+		if err != nil {
+			walkErr = err
+			return
+		} else if int(nodeLevel) >= maxLevel {
+			walkErr = ErrBTreeNodeInvalid
+			return
+		}
 
-				if _, exists := btreeStore.Load(nodeEntry); exists {
-					panic(errors.WithStack(ErrBTreeNodeConflict))
-				}
-
-				file.WalkAndCreateBTree(nodeEntry.FileOffset, btreeType, btreeStore)
+		for i := 0; i < len(nodeEntries); i++ {
+			if _, exists := btreeStore.Load(nodeEntries[i]); exists {
+				walkErr = errors.WithStack(ErrBTreeNodeConflict)
+				return
 			}
-		} else {
-			// Leaf node entries
-			for i := 0; i < len(nodeEntries); i++ {
-				if _, exists := btreeStore.Load(nodeEntries[i]); exists {
-					panic(errors.WithStack(ErrBTreeNodeConflict))
+
+			if nodeLevel > 0 {
+				// Branch node entry.
+				if err := file.walkAndCreateBTree(nodeEntries[i].FileOffset, btreeType, btreeStore, int(nodeLevel)); err != nil {
+					walkErr = err
+					return
 				}
 			}
 		}
 	})
+
+	return walkErr
+}
+
+// getMinimumBTreeEntrySize returns the size of the fields read from b-tree entries.
+// References [MS-PST]: 2.2.2.7.7 BTPAGE.
+func (file *File) getMinimumBTreeEntrySize() int {
+	if file.FormatType == FormatTypeANSI {
+		return 12
+	}
+
+	return 24
+}
+
+// getBTreeEntriesSize returns the size of the entries area (rgentries) of a b-tree page.
+func (file *File) getBTreeEntriesSize() int {
+	switch file.FormatType {
+	case FormatTypeANSI:
+		return 496
+	case FormatTypeUnicode4k:
+		return 4056
+	default:
+		return 488
+	}
 }
 
 // GetBTreeNode returns the node in the node or block b-tree with the given identifier.

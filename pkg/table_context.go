@@ -19,7 +19,6 @@ package pst
 import (
 	"encoding/binary"
 	"io"
-	"math"
 
 	"github.com/rotisserie/eris"
 )
@@ -150,11 +149,25 @@ func (file *File) GetTableContext(heapOnNode *HeapOnNode, localDescriptors []Loc
 		return TableContext{}, eris.Wrap(err, "failed to get block trailer size")
 	}
 
+	// The row (its cell existence bitmap and the columns) must fit in a block.
+	rowLength := int(binary.LittleEndian.Uint16(rowSize))
+	cellExistenceBlockSize := (int(tableColumnCount[0]) + 7) / 8
+
+	if rowLength == 0 || rowLength > blockSize-blockTrailerSize || int(binary.LittleEndian.Uint16(tci1b))+cellExistenceBlockSize > rowLength {
+		return TableContext{}, ErrTableContextInvalid
+	}
+
+	for _, columnDescriptor := range tableColumnDescriptors {
+		if int(columnDescriptor.CellExistenceBitmapIndex)/8 >= cellExistenceBlockSize ||
+			int(columnDescriptor.DataOffset)+int(columnDescriptor.DataSize) > rowLength {
+			return TableContext{}, ErrTableContextInvalid
+		}
+	}
+
 	blockCount := int(tableRowMatrixReader.Size()) / (blockSize - blockTrailerSize)
 	rowsPerBlock := (blockSize - blockTrailerSize) / int(binary.LittleEndian.Uint16(rowSize))
 
 	rowCount := (blockCount * rowsPerBlock) + ((int(tableRowMatrixReader.Size()) % (blockSize - blockTrailerSize)) / int(binary.LittleEndian.Uint16(rowSize)))
-	cellExistenceBlockSize := int(math.Ceil(float64(tableColumnCount[0]) / 8))
 
 	startAtRow := 0
 	numberOfRowsToReturn := rowCount

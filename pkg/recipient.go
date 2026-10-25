@@ -57,22 +57,8 @@ type Recipient struct {
 	Type RecipientType
 	// P1 is set for recipients of a resent message that are only used by the transport (MAPI_P1),
 	// these are not shown as recipients of the message.
-	P1          bool
-	DisplayName string
-	// AddressType is "SMTP" or "EX" (EmailAddress is then an X.500 address), among others.
-	AddressType  string
-	EmailAddress string
-	SMTPAddress  string
-}
-
-// Address returns the SMTP address of the recipient if there is one, otherwise PR_EMAIL_ADDRESS
-// (for example an X.500 address if AddressType is "EX").
-func (recipient Recipient) Address() string {
-	if recipient.SMTPAddress != "" {
-		return recipient.SMTPAddress
-	}
-
-	return recipient.EmailAddress
+	P1 bool
+	Mailbox
 }
 
 // GetRecipients returns the recipients from the recipient table of this message.
@@ -134,7 +120,7 @@ func (message *Message) GetRecipients() ([]Recipient, error) {
 				continue
 			}
 
-			value, err := getRecipientString(&propertyReader)
+			value, err := readString(&propertyReader)
 
 			if eris.Is(err, ErrPropertyNoData) {
 				continue
@@ -158,16 +144,4 @@ func (message *Message) GetRecipients() ([]Recipient, error) {
 	}
 
 	return recipients, nil
-}
-
-// getRecipientString reads a Unicode or 8-bit string property.
-func getRecipientString(propertyReader *PropertyReader) (string, error) {
-	switch propertyReader.Property.Type {
-	case PropertyTypeString:
-		return propertyReader.GetString()
-	case PropertyTypeString8:
-		return propertyReader.GetString8(65001) // TODO - Use the code page of the message, as in WriteMessagePackValue.
-	default:
-		return "", ErrPropertyTypeMismatch
-	}
 }

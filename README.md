@@ -17,7 +17,6 @@ and are not compatible with upstream's `v6`.
 
 Work in progress. Planned, roughly in this order:
 
-- sender SMTP address
 - ANSI (32-bit) PST files (upstream #52) and local descriptors with level > 0
   (upstream #45)
 - attachment MIME type, Content-ID, inline flag and embedded messages
@@ -32,6 +31,10 @@ Changes compared to upstream v6.0.2:
   plain `io.ReaderAt`
 - recipient table: `Message.GetRecipients` returns the To/Cc/Bcc recipients
   with display name, address type, email address and SMTP address
+- sender: `Message.GetSender` and `Message.GetSentRepresenting` (the From
+  header), with `PR_SENDER_SMTP_ADDRESS` / `PR_SENT_REPRESENTING_SMTP_ADDRESS`;
+  `Mailbox.Address` returns the SMTP address, else the email address as stored
+  (possibly X.500)
 
 ## Usage
 

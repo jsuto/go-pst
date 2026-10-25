@@ -17,6 +17,7 @@
 package pst
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"github.com/tinylib/msgp/msgp"
@@ -207,6 +208,8 @@ func (propertyReader *PropertyReader) GetInteger16() (int16, error) {
 		return 0, ErrPropertyTypeMismatch
 	case len(propertyReader.Property.Data) == 0:
 		return 0, ErrPropertyNoData
+	case len(propertyReader.Property.Data) < 2:
+		return 0, ErrPropertyDataTooShort
 	default:
 		return int16(binary.LittleEndian.Uint16(propertyReader.Property.Data)), nil
 	}
@@ -219,6 +222,8 @@ func (propertyReader *PropertyReader) GetInteger32() (int32, error) {
 		return 0, ErrPropertyTypeMismatch
 	case len(propertyReader.Property.Data) == 0:
 		return 0, ErrPropertyNoData
+	case len(propertyReader.Property.Data) < 4:
+		return 0, ErrPropertyDataTooShort
 	default:
 		return int32(binary.LittleEndian.Uint32(propertyReader.Property.Data)), nil
 	}
@@ -230,6 +235,10 @@ func (propertyReader *PropertyReader) GetInteger64() (int64, error) {
 	case propertyReader.Property.Type != PropertyTypeInteger64:
 		return 0, ErrPropertyTypeMismatch
 	case len(propertyReader.Property.Data) != 0:
+		if len(propertyReader.Property.Data) < 8 {
+			return 0, ErrPropertyDataTooShort
+		}
+
 		return int64(binary.LittleEndian.Uint64(propertyReader.Property.Data)), nil
 	case propertyReader.Property.HNID != 0:
 		value := make([]byte, 8)
@@ -273,7 +282,9 @@ func (propertyReader *PropertyReader) GetDate() (int64, error) {
 
 	outputBuffer := make([]byte, 8)
 
-	if _, err := propertyReader.ReadAt(outputBuffer, 0); err != nil {
+	if propertyReader.Size() < 8 {
+		return 0, ErrPropertyDataTooShort
+	} else if _, err := propertyReader.ReadAt(outputBuffer, 0); err != nil {
 		return 0, eris.Wrap(err, "failed to read date")
 	}
 
@@ -302,17 +313,27 @@ func (propertyReader *PropertyReader) GetDate() (int64, error) {
 func (propertyReader *PropertyReader) GetBoolean() (bool, error) {
 	if propertyReader.Property.Type != PropertyTypeBoolean {
 		return false, ErrPropertyTypeMismatch
+	} else if len(propertyReader.Property.Data) == 0 {
+		return false, ErrPropertyNoData
 	}
 
 	return propertyReader.Property.Data[0] == 1, nil
 }
 
-// ReadAt reads the underlying Heap-on-Node.
+// ReadAt reads the underlying Heap-on-Node, or the data of small values.
 func (propertyReader *PropertyReader) ReadAt(outputBuffer []byte, offset int64) (int, error) {
+	if propertyReader.HeapOnNodeReader == nil {
+		return bytes.NewReader(propertyReader.Property.Data).ReadAt(outputBuffer, offset)
+	}
+
 	return propertyReader.HeapOnNodeReader.ReadAt(outputBuffer, offset)
 }
 
-// Size returns the size of the Heap-on-Node.
+// Size returns the size of the Heap-on-Node, or of the data of small values.
 func (propertyReader *PropertyReader) Size() int64 {
+	if propertyReader.HeapOnNodeReader == nil {
+		return int64(len(propertyReader.Property.Data))
+	}
+
 	return propertyReader.HeapOnNodeReader.Size()
 }

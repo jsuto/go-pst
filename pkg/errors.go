@@ -44,6 +44,7 @@ var (
 	ErrLocalDescriptorBranchNode        = errors.New("go-pst: local descriptors level is not 0, please open an issue on GitHub for this to be implemented")
 	ErrPropertyTypeMismatch             = errors.New("go-pst: property type is not the same as the value expected from the caller")
 	ErrPropertyNoData                   = errors.New("go-pst: property has no data")
+	ErrPropertyDataTooShort             = errors.New("go-pst: property data is shorter than its type")
 	ErrNameToIDMapKeyNotFound           = errors.New("go-pst: failed to find key in Name-To-ID Map")
 	ErrMessagesNotFound                 = errors.New("go-pst: folder has no messages")
 	ErrAttachmentsNotFound              = errors.New("go-pst: message has no attachments")

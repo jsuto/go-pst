@@ -65,8 +65,8 @@ const (
 // Internal identifiers have blocks.
 //
 // References:
-// - https://github.com/mooijtech/go-pst/tree/master/docs#xblock
-// - https://github.com/mooijtech/go-pst/tree/master/docs#xxblock
+// - https://github.com/jsuto/go-pst/tree/main/docs#xblock
+// - https://github.com/jsuto/go-pst/tree/main/docs#xxblock
 func (file *File) GetBlocks(btreeNodeHeapOnNodeOffset int64) ([]BTreeNode, error) {
 	data := make([]byte, 4)
 

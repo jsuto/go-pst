@@ -140,7 +140,7 @@ type BTreeNode struct {
 }
 
 // NewBTreeNodeReader is used by the Heap-on-Node.
-func NewBTreeNodeReader(btreeNode BTreeNode, reader Reader) *io.SectionReader {
+func NewBTreeNodeReader(btreeNode BTreeNode, reader io.ReaderAt) *io.SectionReader {
 	return io.NewSectionReader(reader, btreeNode.FileOffset, int64(btreeNode.Size))
 }
 
@@ -159,7 +159,7 @@ func BTreeNodeLessFunc(a BTreeNode, b BTreeNode) bool {
 }
 
 // GetBTreeNodeRawEntries returns the raw b-tree node entries in bytes.
-// References https://github.com/mooijtech/go-pst/blob/master/docs/README.md#btpage
+// References https://github.com/jsuto/go-pst/blob/main/docs/README.md#btpage
 // Used by GetBTreeNodeEntries.
 func (file *File) GetBTreeNodeRawEntries(btreeNodeOffset int64, callback func([]byte, error)) {
 	var outputBuffer []byte
@@ -173,13 +173,15 @@ func (file *File) GetBTreeNodeRawEntries(btreeNodeOffset int64, callback func([]
 		outputBuffer = make([]byte, 512)
 	default:
 		callback(nil, ErrFormatTypeUnsupported)
+		return
 	}
 
-	if _, err := file.Reader.ReadAtAsync(outputBuffer, uint64(btreeNodeOffset), func(err error) {
-		callback(outputBuffer, err)
-	}); err != nil {
+	if _, err := file.Reader.ReadAt(outputBuffer, btreeNodeOffset); err != nil {
 		callback(nil, err)
+		return
 	}
+
+	callback(outputBuffer, nil)
 }
 
 // GetBTreeNodeEntries returns the entries in the b-tree node.

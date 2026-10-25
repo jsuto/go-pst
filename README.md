@@ -17,7 +17,7 @@ and are not compatible with upstream's `v6`.
 
 Work in progress. Planned, roughly in this order:
 
-- recipient table (To/Cc/Bcc with SMTP addresses) and sender SMTP address
+- sender SMTP address
 - ANSI (32-bit) PST files (upstream #52) and local descriptors with level > 0
   (upstream #45)
 - attachment MIME type, Content-ID, inline flag and embedded messages
@@ -30,6 +30,8 @@ Changes compared to upstream v6.0.2:
 - module path `github.com/jsuto/go-pst`, Go 1.27, updated dependencies
 - the Linux io_uring reader (`NewAsync`) was removed; `File.Reader` is a
   plain `io.ReaderAt`
+- recipient table: `Message.GetRecipients` returns the To/Cc/Bcc recipients
+  with display name, address type, email address and SMTP address
 
 ## Usage
 

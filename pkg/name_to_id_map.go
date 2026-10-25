@@ -114,87 +114,74 @@ func (file *File) GetNameToIDMap() (*NameToIDMap, error) {
 		return nil, eris.Wrap(err, "failed to get property context")
 	}
 
-	propertySetToIndex := make(map[string]int, len(PropertySets))
-
-	for i, propertySet := range PropertySets {
-		propertySetToIndex[propertySet] = i
-	}
-
 	// References [MS-PST].pdf "2.4.7.2 GUID Stream"
-	// References [MS-PST].pdf "2.1.2 Properties"
 	// The GUID Stream is a flat array of 16-byte GUID values that contains the GUIDs associated with all
 	// the property sets used in all the named properties in the PST.
-	guidReader, err := propertyContext.GetPropertyReader(2, localDescriptors)
+	guidStream, err := readNameToIDMapStream(propertyContext, 2, localDescriptors)
 
 	if err != nil {
-		return nil, eris.Wrap(err, "failed to get GUID reader")
-	}
-
-	guidCount := int(guidReader.Size() / 16)
-
-	offset := int64(0)
-
-	var guids []string
-	guidIndexes := make([]int, guidCount)
-
-	// TODO - Do ReadAt up front.
-	for i := 0; i < guidCount; i++ {
-		guidBytes := make([]byte, 16)
-
-		if _, err := guidReader.ReadAt(guidBytes, offset); err != nil {
-			return nil, eris.Wrap(err, "failed to read GUID")
-		}
-
-		guid := GUIDFromWindowsArray(guidBytes)
-
-		containsPropertySet := false
-
-		for _, propertySet := range PropertySets {
-			if strings.ToLower(propertySet) == guid.String() {
-				guids = append(guids, propertySet)
-				guidIndexes[i] = propertySetToIndex[propertySet]
-
-				containsPropertySet = true
-				break
-			}
-		}
-
-		// Every GUID index (the GUID Stream) must map to a GUID, specify this index has no GUID.
-		if !containsPropertySet {
-			guidIndexes[i] = -1
-		}
-
-		offset += 16
+		return nil, eris.Wrap(err, "failed to read GUID stream")
 	}
 
 	// References [MS-PST].pdf "2.4.7.3 Entry Stream"
-	// References [MS-PST].pdf "2.1.2 Properties"
 	// The Entry Stream is a flat array of NAMEID records that represent all the named properties in the PST.
-	entryStream, err := propertyContext.GetPropertyReader(3, localDescriptors)
+	entryStream, err := readNameToIDMapStream(propertyContext, 3, localDescriptors)
 
 	if err != nil {
-		return nil, eris.Wrap(err, "failed to get entry stream property reader")
-	}
-
-	entryStreamData := make([]byte, entryStream.Size())
-
-	if _, err := entryStream.ReadAt(entryStreamData, 0); err != nil {
 		return nil, eris.Wrap(err, "failed to read entry stream")
 	}
 
-	// References "2.4.7.4  The String Stream"
-	// References [MS-PST].pdf "2.1.2 Properties"
+	// References [MS-PST].pdf "2.4.7.4 The String Stream"
 	// The String Stream is a packed list of strings that is used for all the named properties in the PST.
-	stringStream, err := propertyContext.GetPropertyReader(4, localDescriptors)
+	stringStream, err := readNameToIDMapStream(propertyContext, 4, localDescriptors)
 
 	if err != nil {
-		return nil, eris.Wrap(err, "failed to get string stream property reader")
+		return nil, eris.Wrap(err, "failed to read string stream")
 	}
 
-	stringStreamData := make([]byte, stringStream.Size())
+	return parseNameToIDMap(guidStream, entryStream, stringStream)
+}
 
-	if _, err := stringStream.ReadAt(stringStreamData, 0); err != nil {
-		return nil, eris.Wrap(err, "failed to read string stream")
+// readNameToIDMapStream reads a stream of the Name-To-ID Map.
+func readNameToIDMapStream(propertyContext *PropertyContext, propertyID uint16, localDescriptors []LocalDescriptor) ([]byte, error) {
+	propertyReader, err := propertyContext.GetPropertyReader(propertyID, localDescriptors)
+
+	if err != nil {
+		return nil, eris.Wrap(err, "failed to get property reader")
+	}
+
+	data := make([]byte, propertyReader.Size())
+
+	if _, err := propertyReader.ReadAt(data, 0); err != nil {
+		return nil, eris.Wrap(err, "failed to read stream")
+	}
+
+	return data, nil
+}
+
+// parseNameToIDMap creates the Name-To-ID Map from its GUID, entry and string streams.
+// Entries referencing data outside the streams are skipped.
+// References [MS-PST].pdf "2.4.7 Named Property Lookup Map", "2.1.2 Properties"
+func parseNameToIDMap(guidStream []byte, entryStream []byte, stringStream []byte) (*NameToIDMap, error) {
+	propertySetToIndex := make(map[string]int, len(PropertySets))
+
+	for i, propertySet := range PropertySets {
+		propertySetToIndex[strings.ToLower(propertySet)] = i
+	}
+
+	var guids []string
+	guidIndexes := make([]int, len(guidStream)/16)
+
+	for i := range guidIndexes {
+		guid := GUIDFromWindowsArray(guidStream[i*16 : (i+1)*16]).String()
+
+		if propertySetIndex, ok := propertySetToIndex[guid]; ok {
+			guids = append(guids, PropertySets[propertySetIndex])
+			guidIndexes[i] = propertySetIndex
+		} else {
+			// Every GUID index (the GUID Stream) must map to a GUID, specify this index has no GUID.
+			guidIndexes[i] = -1
+		}
 	}
 
 	// Process the Entry Stream (NAMEID records).
@@ -204,51 +191,57 @@ func (file *File) GetNameToIDMap() (*NameToIDMap, error) {
 	stringToID := make(map[string]int)
 	idToString := make(map[int]string)
 
-	for i := 0; i+8 <= len(entryStreamData); i += 8 {
-		namedPropertyIdentifier := binary.LittleEndian.Uint16(entryStreamData[i : i+4])
-		namedPropertyGUID := binary.LittleEndian.Uint16(entryStreamData[i+4 : i+6]) // The first bit should be ignored which is the named property identifier type.
-		namedPropertyIdentifierType := namedPropertyGUID & 0x0001
-		namedPropertyIndex := binary.LittleEndian.Uint16(entryStreamData[i+6 : i+8]) // Property index. This is the ordinal number of the named property, which is used to calculate the NPID of this named property.
+	for i := 0; i+8 <= len(entryStream); i += 8 {
+		namedPropertyIdentifier := binary.LittleEndian.Uint32(entryStream[i : i+4])
+		namedPropertyGUID := binary.LittleEndian.Uint16(entryStream[i+4 : i+6])
+		namedPropertyIdentifierType := namedPropertyGUID & 0x0001 // N: 0 for a numerical name, 1 for a string name.
+		namedPropertyGUID >>= 1
+		// Property index. This is the ordinal number of the named property, the named property ID is 0x8000 + index.
+		namedPropertyID := int(binary.LittleEndian.Uint16(entryStream[i+6:i+8])) + 0x8000
 
 		if namedPropertyIdentifierType == 0 {
-			// If the named property identifier type is 0, the named property identifier contains the value of a numerical name.
-			namedPropertyGUID >>= 1
-
-			// The named property ID is calculated by adding 0x8000 to property index.
-			namedPropertyIndex += 0x8000
-
+			// The named property identifier contains the value of a numerical name.
 			var propertySetIndex int
 
-			switch namedPropertyGUID {
-			case 1:
+			switch {
+			case namedPropertyGUID == 1:
 				propertySetIndex = int(PropertySetMAPI)
-			case 2:
+			case namedPropertyGUID == 2:
 				propertySetIndex = int(PropertySetPublicStrings)
-			default:
+			case namedPropertyGUID >= 3 && int(namedPropertyGUID)-3 < len(guidIndexes):
 				propertySetIndex = guidIndexes[int(namedPropertyGUID)-3]
+			default:
+				// No GUID or not in the GUID Stream.
+				propertySetIndex = -1
 			}
 
-			nameToID[int(namedPropertyIdentifier)|propertySetIndex<<32] = int(namedPropertyIndex)
-			idToName[int(namedPropertyIndex)] = int(namedPropertyIdentifier)
+			nameToID[int(namedPropertyIdentifier)|propertySetIndex<<32] = namedPropertyID
+			idToName[namedPropertyID] = int(namedPropertyIdentifier)
 		} else {
-			// If the named property identifier type is 1, this value is the byte offset into the String stream in
-			// which the string name of the property is stored.
-			keyLength := binary.LittleEndian.Uint32(stringStreamData[int(namedPropertyIdentifier) : int(namedPropertyIdentifier)+4])
+			// The named property identifier is the byte offset into the String Stream
+			// of the length (4 bytes) and the UTF-16 string name of the property.
+			offset := int(namedPropertyIdentifier)
 
-			if int(keyLength) > 0 && int(keyLength) < len(stringStreamData) {
-				utf16Decoder := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
-
-				key, err := utf16Decoder.String(string(stringStreamData[int(namedPropertyIdentifier)+4 : int(namedPropertyIdentifier)+4+int(keyLength)]))
-
-				if err != nil {
-					return nil, eris.Wrap(err, "failed to decode UTF-16")
-				}
-
-				namedPropertyIndex += 0x8000
-
-				stringToID[key] = int(namedPropertyIndex)
-				idToString[int(namedPropertyIndex)] = key
+			if offset < 0 || offset > len(stringStream)-4 {
+				continue
 			}
+
+			keyLength := int(binary.LittleEndian.Uint32(stringStream[offset : offset+4]))
+
+			if keyLength <= 0 || keyLength > len(stringStream)-offset-4 {
+				continue
+			}
+
+			utf16Decoder := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewDecoder()
+
+			key, err := utf16Decoder.String(string(stringStream[offset+4 : offset+4+keyLength]))
+
+			if err != nil {
+				return nil, eris.Wrap(err, "failed to decode UTF-16")
+			}
+
+			stringToID[key] = namedPropertyID
+			idToString[namedPropertyID] = key
 		}
 	}
 

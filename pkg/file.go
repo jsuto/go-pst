@@ -31,7 +31,7 @@ type File struct {
 	EncryptionType EncryptionType
 	NodeBTree      BTreeStore
 	BlockBTree     BTreeStore
-	NameToIDMap    *NameToIDMap
+	NameToIDMap    *NameToIDMap // nil if the Name-To-ID Map could not be read.
 }
 
 // New is a constructor for creating PST files.
@@ -104,13 +104,10 @@ func NewFromReaderWithBTrees(reader io.ReaderAt, nodeBTree BTreeStore, blockBTre
 		}
 	}
 
-	nameToIDMap, err := pstFile.GetNameToIDMap()
-
-	if err != nil {
-		return nil, err
+	// Only needed for named properties, the file is still readable without it.
+	if nameToIDMap, err := pstFile.GetNameToIDMap(); err == nil {
+		pstFile.NameToIDMap = nameToIDMap
 	}
-
-	pstFile.NameToIDMap = nameToIDMap
 
 	return pstFile, nil
 }

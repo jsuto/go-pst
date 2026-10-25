@@ -33,39 +33,69 @@ var replacedHeaderFields = map[string]bool{
 	"content-type": true, "content-transfer-encoding": true, "content-disposition": true, "mime-version": true,
 }
 
-// getTransportHeaderLines returns the lines of PR_TRANSPORT_MESSAGE_HEADERS as they are, without the fields of
-// replacedHeaderFields and without lines that are not header fields (Exchange inserts
-// "Microsoft Mail Internet Headers Version 2.0", for example).
-func getTransportHeaderLines(transportHeaders string) []string {
-	var lines []string
+// headerField is a header field with its lines (the first line and its continuation lines) as they are.
+type headerField struct {
+	name  string
+	lines []string
+}
+
+// parseHeaderFields returns the fields of a header up to the first empty line, without lines that are not header
+// fields (Exchange inserts "Microsoft Mail Internet Headers Version 2.0" into transport headers, for example).
+func parseHeaderFields(header string) []headerField {
+	var fields []headerField
 
 	keep := false
 
-	for _, line := range strings.Split(transportHeaders, "\n") {
+	for _, line := range strings.Split(header, "\n") {
 		line = strings.TrimSuffix(line, "\r")
 
 		switch {
 		case line == "":
-			if len(lines) > 0 {
+			if len(fields) > 0 {
 				// End of the header.
-				return lines
+				return fields
 			}
 		case line[0] == ' ' || line[0] == '\t':
 			// Continuation of the previous field.
 			if keep {
-				lines = append(lines, line)
+				fields[len(fields)-1].lines = append(fields[len(fields)-1].lines, line)
 			}
 		default:
 			name, _, isField := strings.Cut(line, ":")
-			keep = isField && isHeaderFieldName(name) && !replacedHeaderFields[strings.ToLower(name)]
+			keep = isField && isHeaderFieldName(name)
 
 			if keep {
-				lines = append(lines, line)
+				fields = append(fields, headerField{name: name, lines: []string{line}})
 			}
 		}
 	}
 
+	return fields
+}
+
+// getTransportHeaderLines returns the lines of PR_TRANSPORT_MESSAGE_HEADERS as they are, without the fields of
+// replacedHeaderFields and without lines that are not header fields.
+func getTransportHeaderLines(transportHeaders string) []string {
+	var lines []string
+
+	for _, field := range parseHeaderFields(transportHeaders) {
+		if !replacedHeaderFields[strings.ToLower(field.name)] {
+			lines = append(lines, field.lines...)
+		}
+	}
+
 	return lines
+}
+
+// getHeaderField returns the lines of the first field with the name (case-insensitive), nil if there is none.
+func getHeaderField(header string, name string) []string {
+	for _, field := range parseHeaderFields(header) {
+		if strings.EqualFold(field.name, name) {
+			return field.lines
+		}
+	}
+
+	return nil
 }
 
 // isHeaderFieldName returns true if the name consists of printable ASCII characters except the colon.

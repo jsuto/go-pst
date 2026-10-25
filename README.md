@@ -48,12 +48,28 @@ Changes compared to upstream v6.0.2:
 ## Converting to EML
 
 ```bash
-go run ./cmd/pst2eml -o out/ mailbox.pst
+pst2eml -o out/ mailbox.pst
 ```
 
 writes one `.eml` per message into a directory per folder (`out/Inbox/1.eml`,
 ...) and prints a report per folder: items read, converted, skipped (with the
 reason) and errors; details of errors and skipped attachments go to stderr.
+
+| Option | |
+|---|---|
+| `-o <directory>` | output directory (required) |
+| `-skip-deleted` | don't convert the items of Deleted Items (counted as skipped) |
+| `-codepage <n>` | code page of 8-bit strings without `PR_MESSAGE_CODEPAGE` (ANSI files), default 1252 |
+| `-version` | print the version |
+
+The exit status is 0 if every item was converted or skipped by design
+(non-mail items, Enterprise Vault shortcuts, Deleted Items with
+`-skip-deleted`), 1 if the file can't be read or items failed, 2 for usage
+errors.
+
+Binaries: `go install github.com/jsuto/go-pst/cmd/pst2eml@latest`, or the
+release archives built by `tools/build-release.sh <version>` (static binaries
+for Linux, Windows and macOS on amd64 and arm64, with `SHA256SUMS`).
 
 The `eml` package does the conversion:
 
@@ -69,7 +85,9 @@ The `eml` package does the conversion:
   Date, Message-ID, In-Reply-To, References, Importance. The body is
   `multipart/alternative` (text and HTML) in `multipart/related` (attachments
   referenced by the HTML) in `multipart/mixed` (attachments, embedded messages
-  as `message/rfc822`). HTML keeps its bytes and charset.
+  as `message/rfc822`). HTML keeps its bytes and charset. S/MIME messages
+  (signed or encrypted) are rebuilt from the original S/MIME entity Outlook
+  keeps as their attachment, so signatures stay verifiable.
 - Non-mail items (appointments, contacts, ...) and Enterprise Vault shortcuts
   return a `*eml.SkipError`; `eml.Classify` decides by the message class.
 

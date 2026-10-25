@@ -80,6 +80,15 @@ Found or deferred while working on the items above:
   ```
   Or run `tools/probe` on large real PSTs (upstream's report came from
   `WalkFolders` on unknown files, maybe large folders).
+- **Large PSTs:** the largest file tested is 29 MB. The EDRM Enron set as
+  republished on Hugging Face (`intellekthq/enron-ferc-pst`, CC BY 3.0
+  US, 171 PSTs, 77 GiB, up to 1.96 GiB each, made by the same ZL
+  Technologies tool as `data/enron.pst`) is good for scale and speed
+  tests, not for Outlook fidelity. No public PST over 4 GiB is known.
+- **S/MIME from a real PST:** the converter rebuilds S/MIME messages from
+  their entity (tested with OpenSSL samples, `pkg/eml/testdata/smime`); no
+  test PST has an S/MIME message, so the PST side (class, attachment) is
+  untested.
 - **ANSI test PST with mail** ("Outlook 97-2002" format) with non-ASCII
   text, e.g. Hungarian, to test String8 decoding with
   `PR_MESSAGE_CODEPAGE` on real data (`data/32-bit.pst` is ASCII only, one
@@ -88,10 +97,6 @@ Found or deferred while working on the items above:
   generated structs (their keys use IDs >= 0x40000). None of the fields
   needed for EML conversion is named; if one is needed, look up its ID via
   `File.NameToIDMap`.
-- **S/MIME** (`IPM.Note.SMIME`, `IPM.Note.SMIME.MultipartSigned`): Outlook
-  stores the signed or encrypted MIME entity as the attachment `smime.p7m`;
-  the converter writes it as an ordinary attachment, so the signature is not
-  usable. Rebuild the message from that entity. No test PST has one.
 - **Meeting requests** are converted as mail with their HTML body; readpst
   adds a `text/calendar` part built from the properties. Not done.
 - Attachments without data (`PR_ATTACH_DATA_BIN` empty, seen in
@@ -155,6 +160,7 @@ non-mail items.
 go run ./cmd/pst2eml -o out/ <file.pst>          # convert to EML, report per folder
 go run ./tools/probe <file.pst> 2>folders.txt   # item/attachment counts, per folder on stderr
 tools/fuzz.sh [5m]                               # all fuzz targets, 4 workers (at most 5 processes)
+tools/build-release.sh v0.2.0                     # pst2eml release archives into dist/
 go run ./tools/dump <file.pst> [header substring...]  # transport headers, DisplayTo/Cc, sender of matching messages
 readpst -e -8 -D -j 0 -o out/ <file.pst>        # reference output (brew install libpst)
 python3 -I tools/eml-check/hdrs.py out/          # header statistics of a directory of .eml

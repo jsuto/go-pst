@@ -68,6 +68,8 @@ type Result struct {
 	SkippedAttachments []string
 	// HasTransportHeaders is set if the header is PR_TRANSPORT_MESSAGE_HEADERS, otherwise it was built from the properties.
 	HasTransportHeaders bool
+	// SMIME is set if the message was rebuilt from its S/MIME entity (signed or encrypted).
+	SMIME bool
 }
 
 // Convert writes the message as RFC 822 / MIME to the writer, with CRLF line endings.
@@ -274,6 +276,26 @@ func (converter *converter) writeMessage(writer io.Writer, message *pst.Message,
 		}
 
 		headerLines = lines
+	}
+
+	messageClass, err := message.GetMessageClass()
+
+	if err != nil {
+		return eris.Wrap(err, "failed to get message class")
+	}
+
+	smimeEntity, err := getSMIMEEntity(message, messageClass)
+
+	if err != nil {
+		return eris.Wrap(err, "failed to read the S/MIME entity")
+	} else if smimeEntity != nil {
+		if written, err := writeSMIME(writer, headerLines, messageProperties.GetTransportMessageHeaders(), smimeEntity); written || err != nil {
+			if depth == 0 {
+				converter.result.SMIME = true
+			}
+
+			return err
+		}
 	}
 
 	root, err := converter.buildEntity(message, depth)

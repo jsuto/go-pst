@@ -12,3 +12,5 @@ protoc-go-inject-tag
 /pst2eml
 # written by the upstream example test (pkg/doc_test.go)
 /pkg/attachments/
+# release archives (tools/build-release.sh)
+/dist/

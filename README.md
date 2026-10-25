@@ -1,39 +1,40 @@
-<h1 align="center">
-  <br>
-  <a href="https://github.com/mooijtech/go-pst"><img src="https://i.imgur.com/LIicreP.png" alt="go-pst" width="280"></a>
-  <br>
-  go-pst
-  <br>
-</h1>
+# go-pst
 
-<h4 align="center">A library for reading PST files (written in Go/Golang)</h4>
+A Go library for reading PST files (Microsoft Outlook and Enterprise Vault
+exports).
 
-<p align="center">
-  <a href="https://github.com/mooijtech/go-pst/blob/master/LICENSE.txt">
-      <img src="https://img.shields.io/badge/license-Apache%202-blue.svg?style=flat-square">
-  </a>
-  <a href="https://github.com/mooijtech/go-pst/issues">
-    <img src="https://img.shields.io/github/issues/mooijtech/go-pst.svg?style=flat-square">
-  </a>
-  <a href="https://github.com/mooijtech/go-pst">
-      <img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat-square">
-  </a>
-</p>
+This is a continuation of [mooijtech/go-pst](https://github.com/mooijtech/go-pst)
+by Marten Mooij, which has not been maintained since 2023. It is maintained
+for the needs of the PST import of the [Piler](https://www.mailpiler.org/)
+email archive: reading PST files and converting their messages to
+RFC 822 / MIME (EML). Fixes and features outside that scope (writing PST
+files, OST or PAB support) are not planned.
 
----
+The module path is `github.com/jsuto/go-pst`; versions start at `v0.1.0`
+and are not compatible with upstream's `v6`.
 
-[![pkg.go.dev reference](https://img.shields.io/badge/pkg.go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/mooijtech/go-pst/v6)
+## Status
 
-## Introduction
+Work in progress. Planned, roughly in this order:
 
-**go-pst** is a library for reading PST files (written in Go/Golang).
+- recipient table (To/Cc/Bcc with SMTP addresses) and sender SMTP address
+- ANSI (32-bit) PST files (upstream #52) and local descriptors with level > 0
+  (upstream #45)
+- attachment MIME type, Content-ID, inline flag and embedded messages
+- plain text, HTML and compressed RTF bodies (including HTML encapsulated
+  in RTF)
+- a converter package and `cmd/pst2eml`
 
-The PFF (Personal Folder File) and OFF (Offline Folder File) format is used to store Microsoft Outlook e-mails, appointments and contacts. The PST (Personal Storage Table), OST (Offline Storage Table) and PAB (Personal Address Book) file format consist of the PFF format.
+Changes compared to upstream v6.0.2:
+
+- module path `github.com/jsuto/go-pst`, Go 1.27, updated dependencies
+- the Linux io_uring reader (`NewAsync`) was removed; `File.Reader` is a
+  plain `io.ReaderAt`
 
 ## Usage
 
 ```bash
-$ go install github.com/mooijtech/go-pst/v6
+go get github.com/jsuto/go-pst
 ```
 
 ```go
@@ -41,8 +42,8 @@ package main
 
 import (
   "fmt"
-  "github.com/mooijtech/go-pst/v6/pkg"
-  "github.com/mooijtech/go-pst/v6/pkg/properties"
+  "github.com/jsuto/go-pst/pkg"
+  "github.com/jsuto/go-pst/pkg/properties"
   "github.com/rotisserie/eris"
   "golang.org/x/text/encoding"
   "os"
@@ -173,26 +174,30 @@ func main() {
 }
 ```
 
-## License 
-
-This project is licensed under the [Apache License 2.0]().
 
 ## Documentation
 
-- [Outlook Personal Folders (.pst) File Format](https://github.com/mooijtech/go-pst/blob/master/docs/README.md)
-- [Exchange Server Protocols Master Property List](https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-oxprops/f6ab1613-aefe-447d-a49c-18217230b148)
+- [Outlook Personal Folders (.pst) File Format](docs/README.md)
+- [MS-PST](https://learn.microsoft.com/openspecs/office_file_formats/ms-pst/)
+- [MS-OXPROPS](https://learn.microsoft.com/openspecs/exchange_server_protocols/ms-oxprops/) (property tags)
+- [MS-OXCMAIL](https://learn.microsoft.com/openspecs/exchange_server_protocols/ms-oxcmail/) (MAPI to MIME mapping)
 
-## Implementations
+## Other implementations
 
+- [outlook-pst-rs](https://github.com/microsoft/outlook-pst-rs)
 - [java-libpst](https://github.com/rjohnsondev/java-libpst)
 - [pstreader](https://github.com/Jmcleodfoss/pstreader)
-  - Special thanks to [James McLeod](https://github.com/Jmcleodfoss)
 - [libpff](https://github.com/libyal/libpff)
 - [XstReader](https://github.com/Dijji/XstReader)
 - [PANhunt](https://github.com/Dionach/PANhunt/blob/master/pst.py)
 
-## Contact
+## Credits
 
-Feel free to contact me if you have any questions.<br/>
-**Name**: Marten Mooij<br/>
-**Email**: info@mooijtech.com<br/>
+go-pst was written by Marten Mooij ([Mooij Technologies](https://github.com/mooijtech)),
+with contributions from the upstream contributors. Upstream thanked
+[James McLeod](https://github.com/Jmcleodfoss) (pstreader) for his help.
+
+## License
+
+Apache License 2.0, see [LICENSE.txt](LICENSE.txt). The original copyright
+notices in the source files are kept.

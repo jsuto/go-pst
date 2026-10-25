@@ -26,7 +26,7 @@ import (
 
 // File represents a PST file.
 type File struct {
-	Reader         Reader
+	Reader         io.ReaderAt
 	FormatType     FormatType
 	EncryptionType EncryptionType
 	NodeBTree      BTreeStore
@@ -34,38 +34,16 @@ type File struct {
 	NameToIDMap    *NameToIDMap
 }
 
-// Reader defines the file reader used by go-pst to support asynchronous I/O.
-// Non-linux systems will fall back to DefaultReader.
-// See AsyncReader.
-type Reader interface {
-	ReadAtAsync(outputBuffer []byte, offset uint64, callback func(err error)) (uint64, error)
-	io.ReaderAt // Blocking call.
-}
-
-// DefaultReader implements Reader using io.ReaderAt.
-type DefaultReader struct {
-	reader io.ReaderAt
-}
-
-func NewDefaultReader(reader io.ReaderAt) *DefaultReader {
-	return &DefaultReader{
-		reader: reader,
-	}
-}
-
 // New is a constructor for creating PST files.
-// See also NewAsync.
 func New(reader io.ReaderAt) (*File, error) {
-	return NewFromReaderWithBTrees(NewDefaultReader(reader), NewBTreeStoreInMemory(), NewBTreeStoreInMemory())
+	return NewFromReaderWithBTrees(reader, NewBTreeStoreInMemory(), NewBTreeStoreInMemory())
 }
 
 // NewFromReaderWithBTrees is a constructor for creating PST files from a reader using the specified b-tree stores.
 // Initialization of the b-tree stores will be skipped respectively if not empty.
-func NewFromReaderWithBTrees(reader Reader, nodeBTree BTreeStore, blockBTree BTreeStore) (*File, error) {
+func NewFromReaderWithBTrees(reader io.ReaderAt, nodeBTree BTreeStore, blockBTree BTreeStore) (*File, error) {
 	pstFile := &File{
-		Reader: &DefaultReader{
-			reader: reader,
-		},
+		Reader:     reader,
 		NodeBTree:  nodeBTree,
 		BlockBTree: blockBTree,
 	}
@@ -257,19 +235,4 @@ func (file *File) GetEncryptionType() (EncryptionType, error) {
 func (file *File) Cleanup() {
 	file.NodeBTree.Clear()
 	file.BlockBTree.Clear()
-}
-
-// ReadAt calls the underlying io.ReaderAt.
-func (defaultReader *DefaultReader) ReadAt(outputBuffer []byte, offset int64) (int, error) {
-	return defaultReader.reader.ReadAt(outputBuffer, offset)
-}
-
-// ReadAtAsync is a fall-back which calls io.ReaderAt.
-// See AsyncReader for Linux io_uring support.
-func (defaultReader *DefaultReader) ReadAtAsync(outputBuffer []byte, offset uint64, callback func(err error)) (uint64, error) {
-	_, err := defaultReader.reader.ReadAt(outputBuffer, int64(offset))
-
-	callback(err)
-
-	return 0, err
 }

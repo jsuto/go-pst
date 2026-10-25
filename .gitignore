@@ -3,3 +3,10 @@
 protoc
 protoc-gen-go
 protoc-go-inject-tag
+# private test PSTs (real addresses), readpst output, local results
+/testdata/private/
+# tool binaries
+/tools/probe/probe
+/tools/dump/dump
+# written by the upstream example test (pkg/doc_test.go)
+/pkg/attachments/

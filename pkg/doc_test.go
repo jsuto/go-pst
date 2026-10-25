@@ -18,8 +18,8 @@ package pst_test
 
 import (
 	"fmt"
-	"github.com/mooijtech/go-pst/v6/pkg"
-	"github.com/mooijtech/go-pst/v6/pkg/properties"
+	"github.com/jsuto/go-pst/pkg"
+	"github.com/jsuto/go-pst/pkg/properties"
 	"github.com/rotisserie/eris"
 	"golang.org/x/text/encoding"
 	"os"

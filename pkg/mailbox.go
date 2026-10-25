@@ -73,6 +73,8 @@ func (message *Message) GetSentRepresenting() (Mailbox, error) {
 func (message *Message) getMailbox(nameID uint16, addressTypeID uint16, emailAddressID uint16, smtpAddressID uint16) (Mailbox, error) {
 	var mailbox Mailbox
 
+	codePage := message.PropertyContext.GetCodePage()
+
 	for _, field := range []struct {
 		propertyID uint16
 		value      *string
@@ -90,7 +92,7 @@ func (message *Message) getMailbox(nameID uint16, addressTypeID uint16, emailAdd
 			return Mailbox{}, eris.Wrapf(err, "failed to get property reader: %x", field.propertyID)
 		}
 
-		value, err := readString(&propertyReader)
+		value, err := readString(&propertyReader, codePage)
 
 		if eris.Is(err, ErrPropertyNoData) {
 			continue
@@ -104,13 +106,13 @@ func (message *Message) getMailbox(nameID uint16, addressTypeID uint16, emailAdd
 	return mailbox, nil
 }
 
-// readString reads a Unicode or 8-bit string property.
-func readString(propertyReader *PropertyReader) (string, error) {
+// readString reads a Unicode or 8-bit string property, String8 is decoded using the code page identifier.
+func readString(propertyReader *PropertyReader, codePageIdentifier int) (string, error) {
 	switch propertyReader.Property.Type {
 	case PropertyTypeString:
 		return propertyReader.GetString()
 	case PropertyTypeString8:
-		return propertyReader.GetString8(65001) // TODO - Use the code page of the message, as in WriteMessagePackValue.
+		return propertyReader.GetString8(codePageIdentifier)
 	default:
 		return "", ErrPropertyTypeMismatch
 	}

@@ -94,6 +94,7 @@ func (message *Message) GetRecipients() ([]Recipient, error) {
 	}
 
 	recipients := make([]Recipient, 0, len(recipientTableContext.Properties))
+	codePage := message.PropertyContext.GetCodePage()
 
 	for _, row := range recipientTableContext.Properties {
 		var recipient Recipient
@@ -120,7 +121,7 @@ func (message *Message) GetRecipients() ([]Recipient, error) {
 				continue
 			}
 
-			value, err := readString(&propertyReader)
+			value, err := readString(&propertyReader, codePage)
 
 			if eris.Is(err, ErrPropertyNoData) {
 				continue

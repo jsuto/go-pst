@@ -127,8 +127,8 @@ func (folder *Folder) GetSubFolders() ([]Folder, error) {
 
 			switch {
 			case property.ID == 12289:
-				// TODO - Check if this is String8 on ANSI FormatType.
-				folderName, err := propertyReader.GetString()
+				// String8 on ANSI FormatType.
+				folderName, err := readString(&propertyReader, folder.File.DefaultCodePage)
 
 				if err != nil {
 					return nil, eris.Wrap(err, "failed to get folder name")

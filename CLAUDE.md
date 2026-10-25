@@ -61,6 +61,37 @@ local private repo):
    with made-up addresses, or synthetic), plus robustness runs on
    `data/enron.pst`.
 
+## Later
+
+Found or deferred while working on the items above:
+
+- **Test PST for #45** (subnode SIBLOCK, implemented in v0.1.4 and only
+  tested with synthetic blocks): a level 0 subnode block holds 340
+  entries (Unicode), so it needs a message with more than ~340 subnodes,
+  i.e. hundreds of attachments. With classic Outlook on Windows:
+  ```powershell
+  $dir = "$env:TEMP\att"; New-Item -ItemType Directory -Force $dir | Out-Null
+  1..400 | % { Set-Content "$dir\file$_.txt" "attachment $_" }
+  $ol = New-Object -ComObject Outlook.Application
+  $mail = $ol.CreateItem(0)
+  $mail.Subject = "400 attachments"; $mail.To = "test@example.com"; $mail.Body = "test"
+  Get-ChildItem $dir | % { [void]$mail.Attachments.Add($_.FullName) }
+  $mail.Save()   # lands in Drafts, then export the PST
+  ```
+  Or run `tools/probe` on large real PSTs (upstream's report came from
+  `WalkFolders` on unknown files, maybe large folders).
+- **ANSI test PST with mail** ("Outlook 97-2002" format) with non-ASCII
+  text, e.g. Hungarian, to test String8 decoding with
+  `PR_MESSAGE_CODEPAGE` on real data (`data/32-bit.pst` is ASCII only, one
+  appointment).
+- **Named properties** (0x8000 and up) are never populated into the
+  generated structs (their keys use IDs >= 0x40000). None of the fields
+  needed for EML conversion is named; if one is needed, look up its ID via
+  `File.NameToIDMap`.
+- **Robustness:** the converter should recover from panics per message and
+  count the message as skipped; a fuzz test on `pst.New` and the message
+  walk (item 8).
+
 ## Converter rules
 
 - Message with `PR_TRANSPORT_MESSAGE_HEADERS`: use those headers, they
@@ -72,6 +103,8 @@ local private repo):
   RFC 2047 for non-ASCII), Message-ID (`PR_INTERNET_MESSAGE_ID`), Date
   (`PR_CLIENT_SUBMIT_TIME`, else `PR_MESSAGE_DELIVERY_TIME`),
   In-Reply-To / References, Importance.
+- `PR_SUBJECT` in a PST can start with 0x01 and a length character
+  marking the prefix ("RE: ", "Updated: "); strip those two characters.
 - An X.500 address that has no SMTP property is written as it is; the
   importer (Piler) maps it with a `legacyExchangeDN` to `mail` table. No
   Piler-specific code in this repo.

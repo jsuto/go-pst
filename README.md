@@ -17,7 +17,6 @@ and are not compatible with upstream's `v6`.
 
 Work in progress. Planned, roughly in this order:
 
-- attachment MIME type, Content-ID, inline flag and embedded messages
 - plain text, HTML and compressed RTF bodies (including HTML encapsulated
   in RTF)
 - a converter package and `cmd/pst2eml`
@@ -37,6 +36,10 @@ Changes compared to upstream v6.0.2:
   the code page of the message (`PR_MESSAGE_CODEPAGE`), else
   `File.DefaultCodePage` (1252 unless changed)
 - local descriptors (subnodes) with level > 0 (upstream #45)
+- attachments: embedded messages (`Attachment.GetEmbeddedMessage`, upstream
+  #10) can be read like any other message, `Attachment.IsInline`, constants for
+  `PR_ATTACH_METHOD` and `PR_ATTACH_FLAGS`; `WriteTo` returns an error for
+  embedded messages
 
 ## Usage
 

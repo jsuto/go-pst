@@ -49,6 +49,8 @@ var (
 	ErrNameToIDMapKeyNotFound            = errors.New("go-pst: failed to find key in Name-To-ID Map")
 	ErrMessagesNotFound                  = errors.New("go-pst: folder has no messages")
 	ErrAttachmentsNotFound               = errors.New("go-pst: message has no attachments")
+	ErrAttachmentNotEmbeddedMessage      = errors.New("go-pst: attachment is not an embedded message")
+	ErrAttachmentEmbeddedMessage         = errors.New("go-pst: attachment is an embedded message, it has no data")
 	ErrBlockIndexNotFound                = errors.New("go-pst: block index not found")
 	ErrTotalBlocksSizeMismatch           = errors.New("go-pst: block total size mismatch")
 )
